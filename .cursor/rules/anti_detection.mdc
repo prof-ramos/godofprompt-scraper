@@ -1,0 +1,356 @@
+---
+description: Técnicas avançadas de anti-detecção para evitar bloqueios de scraping
+---
+
+# 🛡️ Anti-Detecção e Anti-Bloqueio
+
+Técnicas avançadas para **evitar bloqueios** durante web scraping, baseado no guia avançado de scraping.
+
+## 🎭 Configuração Anti-Detecção
+
+### Headers Realistas
+```python
+def create_realistic_headers():
+    """Cria headers que simulam um navegador real."""
+    return {
+        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+        'Accept-Language': 'pt-BR,pt;q=0.9,en;q=0.8',
+        'Accept-Encoding': 'gzip, deflate, br',
+        'DNT': '1',
+        'Connection': 'keep-alive',
+        'Upgrade-Insecure-Requests': '1',
+        'Sec-Fetch-Dest': 'document',
+        'Sec-Fetch-Mode': 'navigate',
+        'Sec-Fetch-Site': 'none',
+        'Cache-Control': 'max-age=0'
+    }
+```
+
+### User-Agents Rotativos
+```python
+USER_AGENTS = [
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36...",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36...",
+    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36..."
+]
+
+def get_random_user_agent():
+    """Retorna um User-Agent aleatório para variar o perfil."""
+    return random.choice(USER_AGENTS)
+```
+
+### Anti-Detecção Chrome Completo
+```python
+def create_stealth_driver():
+    """Cria driver Chrome com anti-detecção máxima."""
+    chrome_options = Options()
+
+    # Execução em background
+    chrome_options.add_argument("--headless=new")  # Novo modo headless
+    chrome_options.add_argument("--no-sandbox")
+    chrome_options.add_argument("--disable-dev-shm-usage")
+    chrome_options.add_argument("--disable-gpu")
+
+    # Janela de tamanho realista
+    chrome_options.add_argument("--window-size=1920,1080")
+
+    # Anti-detecção
+    chrome_options.add_argument("--disable-blink-features=AutomationControlled")
+    chrome_options.add_argument("--disable-extensions")
+    chrome_options.add_argument("--disable-plugins")
+    chrome_options.add_argument("--disable-images")  # Performance
+    chrome_options.add_argument("--disable-javascript")  # Só se necessário
+    chrome_options.add_argument("--disable-web-security")
+    chrome_options.add_argument("--disable-features=VizDisplayCompositor")
+
+    # Experimental options
+    chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
+    chrome_options.add_experimental_option('useAutomationExtension', False)
+    chrome_options.add_experimental_option("prefs", {
+        "profile.password_manager_enabled": False,
+        "credentials_enable_service": False,
+    })
+
+    return webdriver.Chrome(options=chrome_options)
+```
+
+## ⏱️ Delays Adaptativos
+
+### Sistema de Delay Inteligente
+```python
+class AdaptiveDelay:
+    """Sistema de delay que se adapta baseado no comportamento do site."""
+
+    def __init__(self, base_delay=2.0, max_delay=30.0):
+        self.base_delay = base_delay
+        self.max_delay = max_delay
+        self.consecutive_failures = 0
+        self.last_request_time = 0
+
+    def get_delay(self, success=True):
+        """Calcula delay baseado no sucesso/falha da requisição anterior."""
+        if success:
+            self.consecutive_failures = 0
+            # Diminuir delay gradualmente após sucessos
+            delay = max(self.base_delay, self.base_delay * 0.9)
+        else:
+            self.consecutive_failures += 1
+            # Aumentar delay exponencialmente após falhas
+            delay = min(self.max_delay, self.base_delay * (2 ** self.consecutive_failures))
+
+        # Adicionar jitter (±20%)
+        jitter = delay * 0.2 * (random.random() * 2 - 1)
+        final_delay = delay + jitter
+
+        return max(0.5, final_delay)  # Mínimo 0.5s
+
+    def wait_if_needed(self):
+        """Aguarda se necessário para respeitar rate limiting."""
+        elapsed = time.time() - self.last_request_time
+        if elapsed < self.base_delay:
+            time.sleep(self.base_delay - elapsed)
+        self.last_request_time = time.time()
+```
+
+### Backoff Exponencial
+```python
+def exponential_backoff(attempt, base_delay=1, max_delay=60):
+    """Implementa backoff exponencial com jitter."""
+    delay = min(base_delay * (2 ** attempt), max_delay)
+    jitter = delay * 0.1 * (random.random() * 2 - 1)  # ±10%
+    return delay + jitter
+```
+
+## 🔄 Circuit Breaker Pattern
+
+### Implementação Robusta
+```python
+class IntelligentCircuitBreaker:
+    """Circuit breaker que aprende com padrões de falha."""
+
+    def __init__(self, failure_threshold=5, recovery_timeout=300):
+        self.failure_threshold = failure_threshold
+        self.recovery_timeout = recovery_timeout
+        self.failures = 0
+        self.last_failure_time = 0
+        self.state = 'CLOSED'  # CLOSED, OPEN, HALF_OPEN
+
+    def should_attempt(self):
+        """Decide se deve tentar a operação."""
+        current_time = time.time()
+
+        if self.state == 'CLOSED':
+            return True
+
+        if self.state == 'OPEN':
+            if current_time - self.last_failure_time > self.recovery_timeout:
+                self.state = 'HALF_OPEN'
+                logging.info("Circuit breaker: OPEN -> HALF_OPEN")
+                return True
+            return False
+
+        # HALF_OPEN: tentar uma vez
+        return True
+
+    def record_success(self):
+        """Registra sucesso e volta ao estado normal."""
+        self.failures = 0
+        self.state = 'CLOSED'
+        logging.info("Circuit breaker: HALF_OPEN -> CLOSED")
+
+    def record_failure(self):
+        """Registra falha e atualiza estado."""
+        self.failures += 1
+        self.last_failure_time = time.time()
+
+        if self.failures >= self.failure_threshold:
+            self.state = 'OPEN'
+            logging.warning(f"Circuit breaker: CLOSED -> OPEN após {self.failures} falhas")
+        elif self.state == 'HALF_OPEN':
+            self.state = 'OPEN'
+            logging.warning("Circuit breaker: HALF_OPEN -> OPEN")
+
+    def get_status(self):
+        """Retorna status atual para monitoramento."""
+        return {
+            'state': self.state,
+            'failures': self.failures,
+            'last_failure': self.last_failure_time,
+            'time_since_last_failure': time.time() - self.last_failure_time
+        }
+```
+
+## 🎯 Comportamento Humano
+
+### Scroll Simulado
+```python
+def human_like_scroll(driver, max_scrolls=5):
+    """Simula scroll humano com pausas variáveis."""
+    last_height = driver.execute_script("return document.body.scrollHeight")
+
+    for i in range(max_scrolls):
+        # Scroll para baixo
+        driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+
+        # Pausa human-like (1-3 segundos)
+        time.sleep(random.uniform(1, 3))
+
+        # Verificar se carregou mais conteúdo
+        new_height = driver.execute_script("return document.body.scrollHeight")
+
+        if new_height == last_height:
+            break
+
+        last_height = new_height
+
+        # Movimento de mouse simulado
+        actions = webdriver.ActionChains(driver)
+        actions.move_by_offset(random.randint(-100, 100), random.randint(-50, 50))
+        actions.perform()
+
+        time.sleep(random.uniform(0.5, 1.5))
+```
+
+### Interações Realistas
+```python
+def simulate_human_interaction(driver, element):
+    """Simula interação humana com elemento."""
+    # Movimento de mouse para o elemento
+    actions = webdriver.ActionChains(driver)
+    actions.move_to_element(element)
+
+    # Pequena pausa antes do click
+    actions.pause(random.uniform(0.1, 0.5))
+
+    # Click
+    actions.click()
+    actions.perform()
+
+    # Pausa após interação
+    time.sleep(random.uniform(0.5, 2.0))
+```
+
+## 🚨 Detecção de Bloqueios
+
+### Sinais de Alerta
+```python
+BLOCK_INDICATORS = [
+    'blocked', 'captcha', 'rate limit', 'access denied',
+    '403 forbidden', '429 too many requests',
+    'cloudflare', 'ddos protection', 'security check'
+]
+
+def detect_blocking(response_text, status_code):
+    """Detecta se houve bloqueio baseado no conteúdo e status."""
+    if status_code in [403, 429, 503]:
+        return True
+
+    response_lower = response_text.lower()
+    return any(indicator in response_lower for indicator in BLOCK_INDICATORS)
+```
+
+### Ações Corretivas Automáticas
+```python
+def handle_blocking_detected(driver, attempt_number):
+    """Executa ações corretivas quando bloqueio é detectado."""
+    logging.warning(f"Bloqueio detectado na tentativa {attempt_number}")
+
+    # Ações corretivas progressivas
+    if attempt_number == 1:
+        # Primeira tentativa: aumentar delay
+        time.sleep(30)
+    elif attempt_number == 2:
+        # Segunda: trocar User-Agent
+        new_ua = get_random_user_agent()
+        driver.execute_script(f"navigator.__defineGetter__('userAgent', () => '{new_ua}')")
+        time.sleep(60)
+    elif attempt_number == 3:
+        # Terceira: reinicializar driver
+        driver.quit()
+        time.sleep(300)  # 5 minutos
+        return create_stealth_driver()
+
+    return driver
+```
+
+## 📊 Monitoramento de Saúde
+
+### Métricas de Anti-Bloqueio
+```python
+class AntiBlockingMonitor:
+    """Monitora métricas relacionadas a anti-bloqueio."""
+
+    def __init__(self):
+        self.requests_count = 0
+        self.blocks_detected = 0
+        self.user_agent_changes = 0
+        self.delay_increases = 0
+        self.driver_restarts = 0
+
+    def record_request(self, blocked=False):
+        """Registra uma requisição."""
+        self.requests_count += 1
+        if blocked:
+            self.blocks_detected += 1
+
+    def get_block_rate(self):
+        """Calcula taxa de bloqueio."""
+        if self.requests_count == 0:
+            return 0.0
+        return (self.blocks_detected / self.requests_count) * 100
+
+    def should_increase_protection(self):
+        """Decide se deve aumentar medidas de proteção."""
+        block_rate = self.get_block_rate()
+        return block_rate > 10  # > 10% de bloqueios
+```
+
+## 🏆 Melhores Práticas
+
+### Checklist de Anti-Detecção
+- [ ] Headers realistas e completos
+- [ ] User-Agent rotativo
+- [ ] Delays adaptativos com jitter
+- [ ] Circuit breaker implementado
+- [ ] Scroll e interações simuladas
+- [ ] Detecção automática de bloqueios
+- [ ] Ações corretivas automáticas
+- [ ] Monitoramento contínuo de métricas
+
+### Configuração de Produção
+```python
+production_anti_blocking_config = {
+    'user_agents_rotation': True,
+    'adaptive_delays': True,
+    'circuit_breaker_enabled': True,
+    'human_like_interactions': True,
+    'block_detection_enabled': True,
+    'automatic_recovery': True,
+    'monitoring_enabled': True,
+    'max_retries': 5,
+    'base_delay': 3.0,
+    'max_delay': 120.0
+}
+```
+
+### Teste de Robustez
+```python
+def test_anti_blocking_effectiveness():
+    """Testa efetividade das medidas anti-bloqueio."""
+    test_scenarios = [
+        'normal_operation',
+        'high_frequency_requests',
+        'suspicious_patterns',
+        'block_simulation'
+    ]
+
+    results = {}
+    for scenario in test_scenarios:
+        logging.info(f"Testando cenário: {scenario}")
+        # Executar testes específicos
+        # Medir taxa de sucesso
+        # Registrar métricas
+
+    return results
+```

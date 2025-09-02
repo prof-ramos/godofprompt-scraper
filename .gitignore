@@ -1,0 +1,108 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual environments
+venv/
+env/
+ENV/
+.venv/
+.env/
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Project specific
+extraction_log.txt
+debug_*.html
+*.json
+*.yaml
+!requirements.txt
+!links.yaml
+
+# Scraped data directories
+godofprompt_data/
+prompts_extraidos*/
+*_todos_os_links.json
+*_links_extraidos.yaml
+*_prompt_content.json
+
+# Session and cache files
+session_cookies.json
+session_headers.json
+scraper_cache.json
+*_backup_*
+
+# Debug screenshots
+login_fail_*.png
+debug_*.png
+
+# Logs
+*.log
+logs/
+scraping.log
+integrated_scraper.log
+
+# Chrome/Selenium
+chromedriver
+chromedriver.exe
+
+# Temporary files
+*.tmp
+*.temp
+.cache/
+.pytest_cache/
+
+# Coverage reports
+.coverage
+htmlcov/
+.pytest_cache/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# Screenshots and debugging
+screenshots/
+debug/
+
+# Configuration files with sensitive data
+config.local.yaml
+secrets.yaml
+.env
+.env.local
+.env.production
+
+# Credentials and API keys
+credentials.json

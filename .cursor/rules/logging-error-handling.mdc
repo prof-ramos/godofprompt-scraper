@@ -1,0 +1,318 @@
+---
+description: Sistema de logging e tratamento de erros robusto
+---
+
+# 📝 Logging e Tratamento de Erros
+
+Sistema completo para **monitoramento** e **depuração** do scraper de prompts.
+
+## 🎯 Importância do Logging
+
+### Benefícios
+- **Rastreamento** de execução em tempo real
+- **Diagnóstico** rápido de problemas
+- **Auditoria** de resultados
+- **Monitoramento** de performance
+- **Debug** sem reinicializar
+
+### Níveis de Log
+```python
+import logging
+
+# DEBUG: Detalhes técnicos para desenvolvimento
+logging.debug("Elemento encontrado: [wized='plp_prompt_item_all']")
+
+# INFO: Progresso normal da execução
+logging.info(f"Página {page}: {len(prompts)} prompts extraídos")
+
+# WARNING: Situações não críticas
+logging.warning("Página carregada mas sem prompts visíveis")
+
+# ERROR: Problemas que impedem continuação
+logging.error(f"Falha na extração da categoria {category}: {str(e)}")
+
+# CRITICAL: Erros graves que param execução
+logging.critical("Driver do Chrome falhou - abortando extração")
+```
+
+## ⚙️ Configuração do Sistema de Log
+
+### Configuração Básica
+```python
+def setup_logging():
+    """Configura o sistema de logging completo."""
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s - %(levelname)s - %(message)s',
+        handlers=[
+            # Log em arquivo
+            logging.FileHandler('extraction_log.txt', encoding='utf-8'),
+            # Log no console
+            logging.StreamHandler()
+        ]
+    )
+
+    # Configurar nível para bibliotecas externas
+    logging.getLogger('selenium').setLevel(logging.WARNING)
+    logging.getLogger('urllib3').setLevel(logging.WARNING)
+```
+
+### Formatação Avançada
+```python
+# Formato mais detalhado
+formatter = logging.Formatter(
+    '%(asctime)s - %(name)s - %(levelname)s - %(funcName)s:%(lineno)d - %(message)s'
+)
+
+# Handler para arquivo com rotação
+from logging.handlers import RotatingFileHandler
+
+file_handler = RotatingFileHandler(
+    'extraction_log.txt',
+    maxBytes=10*1024*1024,  # 10MB
+    backupCount=5
+)
+file_handler.setFormatter(formatter)
+```
+
+## 🚨 Tratamento de Erros Robusto
+
+### Estrutura Base com Try-Except-Finally
+```python
+def extract_category_links(category):
+    """Extração com tratamento completo de erros."""
+    driver = None
+    start_time = time.time()
+
+    try:
+        logging.info(f"🚀 Iniciando extração: {category['nome']}")
+
+        driver = create_driver()
+        results = []
+
+        # Lógica principal aqui
+        results = perform_extraction(driver, category)
+
+        execution_time = time.time() - start_time
+        logging.info(".2f"
+        return results
+
+    except KeyboardInterrupt:
+        logging.warning(f"⚠️  Extração interrompida pelo usuário: {category['nome']}")
+        return []
+
+    except Exception as e:
+        execution_time = time.time() - start_time
+        logging.error(".2f"        logging.error(f"Stack trace: {traceback.format_exc()}")
+        return []
+
+    finally:
+        if driver:
+            driver.quit()
+            logging.debug("Driver fechado com sucesso")
+```
+
+### Tipos de Exceções Específicas
+```python
+from selenium.common.exceptions import (
+    TimeoutException,
+    NoSuchElementException,
+    WebDriverException,
+    StaleElementReferenceException
+)
+
+try:
+    element = driver.find_element(By.CSS_SELECTOR, selector)
+except TimeoutException:
+    logging.error("Timeout aguardando elemento")
+except NoSuchElementException:
+    logging.error(f"Elemento não encontrado: {selector}")
+except WebDriverException as e:
+    logging.error(f"Erro do WebDriver: {e}")
+except StaleElementReferenceException:
+    logging.warning("Elemento ficou stale - tentando novamente")
+```
+
+## 📊 Métricas e Monitoramento
+
+### Contadores de Performance
+```python
+class ExtractionMetrics:
+    def __init__(self):
+        self.categories_processed = 0
+        self.prompts_extracted = 0
+        self.errors_encountered = 0
+        self.start_time = time.time()
+
+    def log_progress(self, category_name, prompts_count):
+        self.categories_processed += 1
+        self.prompts_extracted += prompts_count
+
+        elapsed = time.time() - self.start_time
+        avg_time = elapsed / self.categories_processed
+
+        logging.info(f"📊 Progresso: {self.categories_processed} categorias processadas")
+        logging.info(f"📈 Total de prompts: {self.prompts_extracted}")
+        logging.info(".2f"
+    def log_error(self, error_type, details):
+        self.errors_encountered += 1
+        logging.error(f"❌ Erro {self.errors_encountered}: {error_type} - {details}")
+```
+
+### Relatório Final
+```python
+def generate_final_report(metrics, results):
+    """Gera relatório completo da extração."""
+    report = {
+        'timestamp': datetime.now().isoformat(),
+        'total_execution_time': time.time() - metrics.start_time,
+        'categories_processed': metrics.categories_processed,
+        'total_prompts': metrics.prompts_extracted,
+        'errors': metrics.errors_encountered,
+        'success_rate': calculate_overall_success_rate(results),
+        'category_breakdown': {}
+    }
+
+    for cat_name, data in results.items():
+        report['category_breakdown'][cat_name] = {
+            'prompts_extracted': len(data['prompts']),
+            'expected': data['quantidade_esperada'],
+            'success_rate': (len(data['prompts']) / data['quantidade_esperada']) * 100
+        }
+
+    # Salvar relatório
+    with open('extraction_report.json', 'w', encoding='utf-8') as f:
+        json.dump(report, f, ensure_ascii=False, indent=2)
+
+    return report
+```
+
+## 🔧 Debugging e Troubleshooting
+
+### Captura de Screenshots
+```python
+def capture_error_screenshot(driver, error_type, category_name):
+    """Captura screenshot em caso de erro."""
+    try:
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"error_{error_type}_{category_name}_{timestamp}.png"
+        driver.save_screenshot(filename)
+        logging.info(f"Screenshot salvo: {filename}")
+    except Exception as e:
+        logging.error(f"Falha ao salvar screenshot: {e}")
+```
+
+### Análise de HTML para Debug
+```python
+def save_debug_html(driver, filename):
+    """Salva HTML da página para análise."""
+    try:
+        html = driver.page_source
+        with open(f"debug_{filename}.html", 'w', encoding='utf-8') as f:
+            f.write(html)
+        logging.info(f"HTML de debug salvo: debug_{filename}.html")
+    except Exception as e:
+        logging.error(f"Falha ao salvar HTML de debug: {e}")
+```
+
+### Verificação de Elementos
+```python
+def debug_element_presence(driver, selectors):
+    """Verifica presença de elementos para debug."""
+    for selector in selectors:
+        try:
+            elements = driver.find_elements(By.CSS_SELECTOR, selector)
+            logging.debug(f"Selector '{selector}': {len(elements)} elementos encontrados")
+        except Exception as e:
+            logging.debug(f"Erro verificando selector '{selector}': {e}")
+```
+
+## ⚡ Padrões de Resiliência
+
+### Retry Mechanism
+```python
+import tenacity
+
+@tenacity.retry(
+    stop=tenacity.stop_after_attempt(3),
+    wait=tenacity.wait_exponential(multiplier=1, min=4, max=10),
+    retry=tenacity.retry_if_exception_type((TimeoutException, WebDriverException))
+)
+def robust_page_load(driver, url):
+    """Carregamento de página com retry automático."""
+    logging.info(f"Carregando: {url}")
+    driver.get(url)
+
+    if not wait_for_prompts_to_load(driver):
+        raise Exception("Falha no carregamento da página")
+```
+
+### Circuit Breaker
+```python
+class CircuitBreaker:
+    def __init__(self, failure_threshold=5, timeout=60):
+        self.failure_threshold = failure_threshold
+        self.timeout = timeout
+        self.failures = 0
+        self.last_failure = 0
+
+    def should_attempt(self):
+        if self.failures >= self.failure_threshold:
+            if time.time() - self.last_failure < self.timeout:
+                return False
+            else:
+                # Reset after timeout
+                self.failures = 0
+        return True
+
+    def record_success(self):
+        self.failures = 0
+
+    def record_failure(self):
+        self.failures += 1
+        self.last_failure = time.time()
+```
+
+### Graceful Degradation
+```python
+def extract_with_fallback(driver, category):
+    """Extração com estratégias de fallback."""
+    strategies = [
+        extract_with_selenium,
+        extract_with_requests_fallback,
+        extract_minimal_data
+    ]
+
+    for strategy in strategies:
+        try:
+            logging.info(f"Tentando estratégia: {strategy.__name__}")
+            return strategy(driver, category)
+        except Exception as e:
+            logging.warning(f"Estratégia {strategy.__name__} falhou: {e}")
+            continue
+
+    logging.error("Todas as estratégias falharam")
+    return []
+```
+
+## 📋 Checklist de Qualidade
+
+### Antes de Executar
+- [ ] Logging configurado corretamente
+- [ ] Níveis de log apropriados
+- [ ] Handlers configurados (arquivo + console)
+- [ ] Tratamento de exceções implementado
+- [ ] Métricas de performance ativas
+
+### Durante a Execução
+- [ ] Logs sendo gravados regularmente
+- [ ] Progresso sendo reportado
+- [ ] Erros sendo capturados e logados
+- [ ] Screenshots salvos em caso de falha
+- [ ] Recursos sendo liberados corretamente
+
+### Após a Execução
+- [ ] Relatório final gerado
+- [ ] Logs analisados para melhorias
+- [ ] Métricas consolidadas
+- [ ] Problemas identificados e documentados

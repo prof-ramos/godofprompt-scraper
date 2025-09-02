@@ -1,0 +1,25 @@
+categoriasDePrompt:
+  - nome: Vendas
+    quantidadeDePrompts: 252
+    link: https://www.godofprompt.ai/prompts?category=sales&premium=true
+  - nome: Educação
+    quantidadeDePrompts: 276
+    link: https://www.godofprompt.ai/prompts?category=education&premium=true
+  - nome: Empreendedores Individuais
+    quantidadeDePrompts: 201
+    link: https://www.godofprompt.ai/prompts?category=solopreneurs&premium=true
+  - nome: SEO
+    quantidadeDePrompts: 223
+    link: https://www.godofprompt.ai/prompts?category=seo&premium=true
+  - nome: Produtividade
+    quantidadeDePrompts: 218
+    link: https://www.godofprompt.ai/prompts?category=productivity&premium=true
+  - nome: Escrita
+    quantidadeDePrompts: 383
+    link: https://www.godofprompt.ai/prompts?category=writing&premium=true
+  - nome: Negócios
+    quantidadeDePrompts: 293
+    link: https://www.godofprompt.ai/prompts?category=business&premium=true
+  - nome: Marketing
+    quantidadeDePrompts: 177
+    link: https://www.godofprompt.ai/prompts?category=marketing&premium=true

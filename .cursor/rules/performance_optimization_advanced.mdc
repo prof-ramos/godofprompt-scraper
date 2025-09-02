@@ -1,0 +1,670 @@
+---
+description: Técnicas avançadas de otimização de performance para web scraping
+---
+
+# ⚡ Otimizações de Performance Avançadas
+
+Técnicas **profissionais** de otimização baseadas no guia avançado de scraping para maximizar eficiência e velocidade.
+
+## 🚀 Processamento Paralelo Inteligente
+
+### Configuração Otimizada de Workers
+```python
+class OptimizedThreadPool:
+    """ThreadPoolExecutor otimizado para scraping."""
+
+    def __init__(self, max_workers=None, adaptive=True):
+        self.adaptive = adaptive
+
+        if max_workers is None:
+            # Cálculo inteligente baseado no sistema
+            cpu_count = os.cpu_count()
+            memory_gb = psutil.virtual_memory().total / (1024**3)
+
+            # Regras empíricas para scraping
+            if memory_gb > 16:  # Muito RAM
+                max_workers = min(cpu_count * 2, 8)
+            elif memory_gb > 8:  # RAM boa
+                max_workers = min(cpu_count, 6)
+            else:  # RAM limitada
+                max_workers = min(cpu_count // 2, 3)
+
+        self.max_workers = max_workers
+        self.executor = ThreadPoolExecutor(max_workers=max_workers)
+        self.active_tasks = 0
+
+    def submit_task(self, func, *args, **kwargs):
+        """Submete tarefa com controle de recursos."""
+        if self.adaptive:
+            # Verificar recursos antes de submeter
+            cpu_percent = psutil.cpu_percent(interval=1)
+            memory_percent = psutil.virtual_memory().percent
+
+            if cpu_percent > 85 or memory_percent > 90:
+                logging.warning("Recursos altos detectados, pausando novas tarefas")
+                time.sleep(5)
+                return None
+
+        self.active_tasks += 1
+        future = self.executor.submit(func, *args, **kwargs)
+        future.add_done_callback(lambda f: self._task_completed())
+        return future
+
+    def _task_completed(self):
+        """Callback quando tarefa é completada."""
+        self.active_tasks -= 1
+
+    def shutdown(self):
+        """Encerra o pool de forma elegante."""
+        self.executor.shutdown(wait=True)
+```
+
+### Estratégia de Lotes Inteligente
+```python
+class SmartBatchProcessor:
+    """Processador de lotes que se adapta ao desempenho."""
+
+    def __init__(self, initial_batch_size=5, max_batch_size=20):
+        self.batch_size = initial_batch_size
+        self.max_batch_size = max_batch_size
+        self.min_batch_size = 1
+        self.success_rate = 1.0
+        self.avg_processing_time = 0
+
+    def get_optimal_batch_size(self):
+        """Calcula tamanho ótimo de lote baseado no desempenho."""
+        if self.success_rate > 0.95 and self.avg_processing_time < 10:
+            # Desempenho bom, pode aumentar lote
+            new_size = min(self.batch_size + 1, self.max_batch_size)
+        elif self.success_rate < 0.8 or self.avg_processing_time > 30:
+            # Desempenho ruim, reduzir lote
+            new_size = max(self.batch_size - 1, self.min_batch_size)
+        else:
+            # Manter tamanho atual
+            new_size = self.batch_size
+
+        self.batch_size = new_size
+        return new_size
+
+    def update_metrics(self, success_count, total_count, avg_time):
+        """Atualiza métricas para ajuste automático."""
+        self.success_rate = success_count / total_count if total_count > 0 else 1.0
+        self.avg_processing_time = avg_time
+        self.get_optimal_batch_size()
+```
+
+## 💾 Cache Inteligente Multi-Nível
+
+### Sistema de Cache Híbrido
+```python
+class HybridCache:
+    """Cache com múltiplas camadas de armazenamento."""
+
+    def __init__(self, max_memory_items=1000, max_disk_items=10000):
+        self.memory_cache = {}
+        self.disk_cache = {}
+        self.max_memory = max_memory_items
+        self.max_disk = max_disk_items
+        self.access_counts = {}
+
+        # Criar diretório de cache em disco
+        self.cache_dir = Path("cache")
+        self.cache_dir.mkdir(exist_ok=True)
+
+    def get(self, key):
+        """Busca item no cache com prioridade memória -> disco."""
+        # Primeiro tenta memória
+        if key in self.memory_cache:
+            self.access_counts[key] = self.access_counts.get(key, 0) + 1
+            return self.memory_cache[key]
+
+        # Depois tenta disco
+        disk_key = self._key_to_filename(key)
+        disk_path = self.cache_dir / disk_key
+
+        if disk_path.exists():
+            try:
+                with open(disk_path, 'rb') as f:
+                    data = pickle.load(f)
+                # Promover para memória se acessado frequentemente
+                if self.access_counts.get(key, 0) > 5:
+                    self._promote_to_memory(key, data)
+                return data
+            except Exception as e:
+                logging.warning(f"Erro lendo cache em disco: {e}")
+
+        return None
+
+    def set(self, key, value, ttl_seconds=3600):
+        """Armazena item no cache com TTL."""
+        cache_item = {
+            'data': value,
+            'timestamp': time.time(),
+            'ttl': ttl_seconds
+        }
+
+        # Sempre armazena em memória se espaço disponível
+        if len(self.memory_cache) < self.max_memory:
+            self.memory_cache[key] = cache_item
+        else:
+            # Remove item menos acessado (LRU)
+            lru_key = min(self.access_counts, key=self.access_counts.get)
+            del self.memory_cache[lru_key]
+            del self.access_counts[lru_key]
+            self.memory_cache[key] = cache_item
+
+        # Armazena em disco se importante
+        if self._is_important_key(key):
+            self._save_to_disk(key, cache_item)
+
+    def _promote_to_memory(self, key, data):
+        """Promove item do disco para memória."""
+        if len(self.memory_cache) < self.max_memory:
+            self.memory_cache[key] = data
+
+    def _is_important_key(self, key):
+        """Determina se chave deve ser cacheada em disco."""
+        return self.access_counts.get(key, 0) > 3
+
+    def _save_to_disk(self, key, data):
+        """Salva item em disco."""
+        try:
+            disk_key = self._key_to_filename(key)
+            disk_path = self.cache_dir / disk_key
+
+            with open(disk_path, 'wb') as f:
+                pickle.dump(data, f)
+        except Exception as e:
+            logging.warning(f"Erro salvando cache em disco: {e}")
+
+    def _key_to_filename(self, key):
+        """Converte chave em nome de arquivo seguro."""
+        import hashlib
+        hash_obj = hashlib.md5(str(key).encode())
+        return hash_obj.hexdigest() + '.cache'
+
+    def cleanup_expired(self):
+        """Remove itens expirados do cache."""
+        current_time = time.time()
+
+        # Limpar memória
+        expired_keys = [
+            k for k, v in self.memory_cache.items()
+            if current_time - v['timestamp'] > v['ttl']
+        ]
+        for key in expired_keys:
+            del self.memory_cache[key]
+
+        # Limpar disco
+        for cache_file in self.cache_dir.glob('*.cache'):
+            try:
+                if current_time - cache_file.stat().st_mtime > 3600:  # 1 hora
+                    cache_file.unlink()
+            except:
+                pass
+```
+
+## 📊 Monitoramento de Recursos em Tempo Real
+
+### Monitor de Sistema Avançado
+```python
+class AdvancedSystemMonitor:
+    """Monitor avançado de recursos do sistema."""
+
+    def __init__(self, alert_thresholds=None):
+        self.process = psutil.Process()
+        self.start_time = time.time()
+
+        self.alert_thresholds = alert_thresholds or {
+            'cpu_percent': 85.0,
+            'memory_percent': 90.0,
+            'disk_usage_percent': 95.0,
+            'network_connections': 100
+        }
+
+        self.metrics_history = []
+        self.alerts = []
+
+    def get_comprehensive_metrics(self):
+        """Coleta métricas abrangentes do sistema."""
+        return {
+            'timestamp': time.time(),
+            'cpu': {
+                'percent': psutil.cpu_percent(interval=1),
+                'count': psutil.cpu_count(),
+                'freq': psutil.cpu_freq().current if psutil.cpu_freq() else None
+            },
+            'memory': {
+                'total': psutil.virtual_memory().total,
+                'available': psutil.virtual_memory().available,
+                'percent': psutil.virtual_memory().percent,
+                'process_rss': self.process.memory_info().rss
+            },
+            'disk': {
+                'total': psutil.disk_usage('/').total,
+                'free': psutil.disk_usage('/').free,
+                'percent': psutil.disk_usage('/').percent
+            },
+            'network': {
+                'connections': len(psutil.net_connections()),
+                'bytes_sent': psutil.net_io_counters().bytes_sent,
+                'bytes_recv': psutil.net_io_counters().bytes_recv
+            },
+            'process': {
+                'threads': self.process.num_threads(),
+                'open_files': len(self.process.open_files()),
+                'cpu_percent': self.process.cpu_percent(),
+                'memory_percent': self.process.memory_percent()
+            }
+        }
+
+    def check_alerts(self):
+        """Verifica se alguma métrica ultrapassou os limites."""
+        metrics = self.get_comprehensive_metrics()
+        alerts = []
+
+        # CPU
+        if metrics['cpu']['percent'] > self.alert_thresholds['cpu_percent']:
+            alerts.append({
+                'type': 'HIGH_CPU',
+                'value': metrics['cpu']['percent'],
+                'threshold': self.alert_thresholds['cpu_percent'],
+                'timestamp': metrics['timestamp']
+            })
+
+        # Memória
+        if metrics['memory']['percent'] > self.alert_thresholds['memory_percent']:
+            alerts.append({
+                'type': 'HIGH_MEMORY',
+                'value': metrics['memory']['percent'],
+                'threshold': self.alert_thresholds['memory_percent'],
+                'timestamp': metrics['timestamp']
+            })
+
+        # Disco
+        if metrics['disk']['percent'] > self.alert_thresholds['disk_usage_percent']:
+            alerts.append({
+                'type': 'HIGH_DISK_USAGE',
+                'value': metrics['disk']['percent'],
+                'threshold': self.alert_thresholds['disk_usage_percent'],
+                'timestamp': metrics['timestamp']
+            })
+
+        # Conexões de rede
+        if metrics['network']['connections'] > self.alert_thresholds['network_connections']:
+            alerts.append({
+                'type': 'HIGH_NETWORK_CONNECTIONS',
+                'value': metrics['network']['connections'],
+                'threshold': self.alert_thresholds['network_connections'],
+                'timestamp': metrics['timestamp']
+            })
+
+        self.alerts.extend(alerts)
+        return alerts
+
+    def get_performance_report(self):
+        """Gera relatório de performance detalhado."""
+        if not self.metrics_history:
+            return {}
+
+        # Calcular estatísticas
+        cpu_values = [m['cpu']['percent'] for m in self.metrics_history]
+        memory_values = [m['memory']['percent'] for m in self.metrics_history]
+
+        return {
+            'duration': time.time() - self.start_time,
+            'cpu_stats': {
+                'avg': sum(cpu_values) / len(cpu_values),
+                'max': max(cpu_values),
+                'min': min(cpu_values)
+            },
+            'memory_stats': {
+                'avg': sum(memory_values) / len(memory_values),
+                'max': max(memory_values),
+                'min': min(memory_values)
+            },
+            'alerts_count': len(self.alerts),
+            'alerts_by_type': {}
+        }
+
+    def start_monitoring(self, interval=30):
+        """Inicia monitoramento contínuo."""
+        def monitor_loop():
+            while True:
+                metrics = self.get_comprehensive_metrics()
+                self.metrics_history.append(metrics)
+
+                # Manter apenas últimas 100 medições
+                if len(self.metrics_history) > 100:
+                    self.metrics_history.pop(0)
+
+                # Verificar alertas
+                alerts = self.check_alerts()
+                if alerts:
+                    for alert in alerts:
+                        logging.warning(f"ALERTA: {alert['type']} - {alert['value']:.1f}% (limite: {alert['threshold']:.1f}%)")
+
+                time.sleep(interval)
+
+        import threading
+        monitor_thread = threading.Thread(target=monitor_loop, daemon=True)
+        monitor_thread.start()
+        logging.info(f"Monitoramento de sistema iniciado (intervalo: {interval}s)")
+```
+
+## 🔄 Otimizações de Conectividade
+
+### Connection Pool Inteligente
+```python
+class SmartConnectionPool:
+    """Pool de conexões otimizado para scraping."""
+
+    def __init__(self, max_connections=10, timeout=30):
+        self.max_connections = max_connections
+        self.timeout = timeout
+        self.connections = {}
+        self.last_used = {}
+
+    def get_connection(self, domain):
+        """Obtém conexão reutilizável para domínio."""
+        if domain in self.connections:
+            # Verificar se conexão ainda é válida
+            if time.time() - self.last_used[domain] < 300:  # 5 minutos
+                return self.connections[domain]
+
+            # Fechar conexão antiga
+            try:
+                self.connections[domain].close()
+            except:
+                pass
+
+        # Criar nova conexão
+        import urllib3
+        http = urllib3.PoolManager(
+            maxsize=self.max_connections,
+            timeout=urllib3.Timeout(self.timeout)
+        )
+
+        self.connections[domain] = http
+        self.last_used[domain] = time.time()
+
+        return http
+
+    def cleanup_idle_connections(self, max_idle_time=600):
+        """Remove conexões ociosas."""
+        current_time = time.time()
+        domains_to_remove = []
+
+        for domain, last_used in self.last_used.items():
+            if current_time - last_used > max_idle_time:
+                try:
+                    self.connections[domain].close()
+                except:
+                    pass
+                domains_to_remove.append(domain)
+
+        for domain in domains_to_remove:
+            del self.connections[domain]
+            del self.last_used[domain]
+```
+
+## 🎯 Otimizações de Parsing
+
+### Parser Híbrido com Fallback
+```python
+class HybridHTMLParser:
+    """Parser HTML que combina velocidade e robustez."""
+
+    def __init__(self):
+        self.parsers = {
+            'lxml': self._parse_lxml,
+            'beautifulsoup': self._parse_beautifulsoup,
+            'regex': self._parse_regex
+        }
+
+    def parse(self, html_content, selector):
+        """Tenta parsers em ordem de velocidade."""
+        for parser_name, parser_func in self.parsers.items():
+            try:
+                logging.debug(f"Tentando parser: {parser_name}")
+                result = parser_func(html_content, selector)
+                if result:
+                    return result
+            except Exception as e:
+                logging.debug(f"Parser {parser_name} falhou: {e}")
+                continue
+
+        return None
+
+    def _parse_lxml(self, html_content, selector):
+        """Parsing mais rápido com lxml."""
+        from lxml import html, etree
+
+        tree = html.fromstring(html_content)
+        elements = tree.xpath(selector)
+        return elements
+
+    def _parse_beautifulsoup(self, html_content, selector):
+        """Parsing robusto com BeautifulSoup."""
+        soup = BeautifulSoup(html_content, 'html.parser')
+        elements = soup.select(selector)
+        return elements
+
+    def _parse_regex(self, html_content, selector):
+        """Fallback com regex para seletores simples."""
+        import re
+
+        # Converte seletor CSS simples para regex
+        if selector.startswith('.'):
+            pattern = f'class=["\'][^"\']*{re.escape(selector[1:])}[^"\']*["\']'
+        elif selector.startswith('#'):
+            pattern = f'id=["\']{re.escape(selector[1:])}["\']'
+        else:
+            return None
+
+        matches = re.findall(pattern, html_content, re.IGNORECASE)
+        return matches if matches else None
+```
+
+## 🚀 Estratégias de Pré-carregamento
+
+### Predictive Loading
+```python
+class PredictiveLoader:
+    """Sistema de carregamento preditivo baseado em padrões."""
+
+    def __init__(self):
+        self.patterns = {}
+        self.predictions = {}
+
+    def learn_pattern(self, category, access_sequence):
+        """Aprende padrões de acesso para predição."""
+        if category not in self.patterns:
+            self.patterns[category] = []
+
+        self.patterns[category].append(access_sequence)
+
+        # Identificar próximos itens prováveis
+        if len(access_sequence) > 2:
+            next_item = self._predict_next(category, access_sequence[:-1])
+            if next_item:
+                self.predictions[category] = next_item
+
+    def get_predictions(self, category):
+        """Retorna itens que devem ser pré-carregados."""
+        return self.predictions.get(category, [])
+
+    def _predict_next(self, category, sequence):
+        """Prediz próximo item baseado em histórico."""
+        if category not in self.patterns:
+            return None
+
+        # Buscar padrões similares
+        candidates = []
+        for pattern in self.patterns[category]:
+            if len(pattern) > len(sequence):
+                if pattern[:len(sequence)] == sequence:
+                    candidates.append(pattern[len(sequence)])
+
+        if candidates:
+            # Retornar item mais frequente
+            return max(set(candidates), key=candidates.count)
+
+        return None
+```
+
+## 📈 Métricas de Performance Avançadas
+
+### Calculadora de Eficiência
+```python
+class PerformanceCalculator:
+    """Calcula métricas avançadas de performance."""
+
+    def __init__(self):
+        self.start_time = time.time()
+        self.operations = {}
+
+    def record_operation(self, operation_name, duration, success=True, metadata=None):
+        """Registra operação para análise."""
+        if operation_name not in self.operations:
+            self.operations[operation_name] = {
+                'count': 0,
+                'success_count': 0,
+                'total_duration': 0,
+                'durations': [],
+                'metadata': []
+            }
+
+        op_data = self.operations[operation_name]
+        op_data['count'] += 1
+        op_data['total_duration'] += duration
+        op_data['durations'].append(duration)
+
+        if success:
+            op_data['success_count'] += 1
+
+        if metadata:
+            op_data['metadata'].append(metadata)
+
+    def get_efficiency_metrics(self):
+        """Calcula métricas de eficiência."""
+        total_time = time.time() - self.start_time
+        total_operations = sum(op['count'] for op in self.operations.values())
+
+        return {
+            'total_runtime': total_time,
+            'total_operations': total_operations,
+            'operations_per_second': total_operations / total_time if total_time > 0 else 0,
+            'success_rate': sum(op['success_count'] for op in self.operations.values()) / total_operations if total_operations > 0 else 0,
+            'average_operation_time': sum(op['total_duration'] for op in self.operations.values()) / total_operations if total_operations > 0 else 0,
+            'operation_breakdown': {
+                name: {
+                    'count': data['count'],
+                    'success_rate': data['success_count'] / data['count'] if data['count'] > 0 else 0,
+                    'avg_duration': sum(data['durations']) / len(data['durations']) if data['durations'] else 0,
+                    'total_duration': data['total_duration']
+                }
+                for name, data in self.operations.items()
+            }
+        }
+
+    def identify_bottlenecks(self):
+        """Identifica gargalos no sistema."""
+        metrics = self.get_efficiency_metrics()
+        bottlenecks = []
+
+        for op_name, op_data in metrics['operation_breakdown'].items():
+            if op_data['avg_duration'] > 10:  # > 10 segundos
+                bottlenecks.append({
+                    'operation': op_name,
+                    'avg_duration': op_data['avg_duration'],
+                    'impact': op_data['count'] * op_data['avg_duration']
+                })
+
+        # Ordenar por impacto
+        return sorted(bottlenecks, key=lambda x: x['impact'], reverse=True)
+```
+
+## 🏆 Otimizações de Produção
+
+### Configuração de Produção Otimizada
+```python
+production_optimization_config = {
+    # Processamento Paralelo
+    'max_workers': 4,
+    'batch_size_adaptive': True,
+    'initial_batch_size': 5,
+    'max_batch_size': 15,
+
+    # Cache
+    'cache_enabled': True,
+    'cache_memory_items': 1000,
+    'cache_disk_items': 10000,
+    'cache_ttl_seconds': 3600,
+
+    # Monitoramento
+    'monitoring_enabled': True,
+    'monitoring_interval': 30,
+    'alert_cpu_threshold': 85.0,
+    'alert_memory_threshold': 90.0,
+
+    # Conectividade
+    'connection_pool_size': 10,
+    'connection_timeout': 30,
+    'connection_pool_cleanup_interval': 300,
+
+    # Parsing
+    'parser_fallback_enabled': True,
+    'parser_priority': ['lxml', 'beautifulsoup', 'regex'],
+
+    # Preditivo
+    'predictive_loading_enabled': True,
+    'prediction_history_size': 100,
+
+    # Métricas
+    'performance_tracking_enabled': True,
+    'bottleneck_detection_enabled': True,
+    'efficiency_reports_enabled': True
+}
+```
+
+### Script de Otimização Automática
+```python
+def auto_optimize_system():
+    """Executa otimizações automáticas baseadas em métricas."""
+    monitor = AdvancedSystemMonitor()
+    calculator = PerformanceCalculator()
+
+    # Coletar métricas por 5 minutos
+    logging.info("Coletando métricas para otimização automática...")
+    time.sleep(300)
+
+    # Identificar gargalos
+    bottlenecks = calculator.identify_bottlenecks()
+    metrics = calculator.get_efficiency_metrics()
+
+    recommendations = []
+
+    # Análise de CPU
+    if metrics.get('cpu_stats', {}).get('avg', 0) > 80:
+        recommendations.append("Reduzir número de workers simultâneos")
+
+    # Análise de memória
+    if metrics.get('memory_stats', {}).get('avg', 0) > 85:
+        recommendations.append("Implementar processamento em lotes menores")
+        recommendations.append("Ativar garbage collection mais frequente")
+
+    # Análise de gargalos
+    if bottlenecks:
+        recommendations.append(f"Otimizar operação: {bottlenecks[0]['operation']}")
+
+    # Aplicar recomendações
+    for rec in recommendations:
+        logging.info(f"Recomendação: {rec}")
+
+    return {
+        'bottlenecks': bottlenecks,
+        'metrics': metrics,
+        'recommendations': recommendations
+    }
+```

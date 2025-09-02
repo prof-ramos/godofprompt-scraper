@@ -1,0 +1,129 @@
+---
+globs: *.yaml,*.yml
+description: Gerenciamento da configuração YAML do projeto
+---
+
+# 📋 Configuração YAML - links.yaml
+
+O arquivo [links.yaml](mdc:links.yaml) contém a configuração das categorias de prompts do godofprompt.ai.
+
+## 📊 Estrutura do Arquivo
+
+```yaml
+categoriasDePrompt:
+  - nome: "Vendas"
+    quantidadeDePrompts: 252
+    link: "https://www.godofprompt.ai/prompts?category=sales&premium=true"
+  - nome: "Educação"
+    quantidadeDePrompts: 276
+    link: "https://www.godofprompt.ai/prompts?category=education&premium=true"
+```
+
+## 🏷️ Campos Obrigatórios
+
+### `nome` (string)
+- Nome descritivo da categoria
+- Usado para identificação e logging
+- Deve ser único no arquivo
+
+### `quantidadeDePrompts` (inteiro)
+- Número esperado de prompts nesta categoria
+- Usado para calcular taxa de sucesso
+- Pode não corresponder exatamente ao real (site pode ter mais/menos)
+
+### `link` (string)
+- URL base da categoria no godofprompt.ai
+- Deve incluir parâmetros `category` e `premium=true`
+- Formato: `https://www.godofprompt.ai/prompts?category={slug}&premium=true`
+
+## 🔧 Como Modificar
+
+### Adicionando Nova Categoria
+```yaml
+  - nome: "Nova Categoria"
+    quantidadeDePrompts: 150
+    link: "https://www.godofprompt.ai/prompts?category=nova-categoria&premium=true"
+```
+
+### Atualizando Quantidades
+```yaml
+  - nome: "Vendas"
+    quantidadeDePrompts: 280  # Atualizado
+    link: "https://www.godofprompt.ai/prompts?category=sales&premium=true"
+```
+
+## 📖 Leitura no Código Python
+
+```python
+import yaml
+
+def load_categories():
+    """Carrega as categorias do arquivo links.yaml"""
+    with open('links.yaml', 'r', encoding='utf-8') as f:
+        data = yaml.safe_load(f)
+    return data['categoriasDePrompt']
+
+# Uso
+categories = load_categories()
+for cat in categories:
+    print(f"{cat['nome']}: {cat['quantidadeDePrompts']} prompts")
+```
+
+## ⚠️ Validações Importantes
+
+### Verificar URLs
+- Todas as URLs devem ser válidas
+- Devem seguir o padrão do godofprompt.ai
+- Parâmetro `premium=true` é obrigatório
+
+### Nomes Únicos
+```python
+def validate_unique_names(categories):
+    names = [cat['nome'] for cat in categories]
+    return len(names) == len(set(names))
+```
+
+### URLs Válidas
+```python
+from urllib.parse import urlparse
+
+def validate_urls(categories):
+    for cat in categories:
+        parsed = urlparse(cat['link'])
+        if not (parsed.scheme and parsed.netloc):
+            raise ValueError(f"URL inválida: {cat['link']}")
+```
+
+## 🔄 Sincronização com Site
+
+### Verificar Atualizações
+1. Acesse cada categoria no site
+2. Conte o número real de prompts
+3. Atualize o campo `quantidadeDePrompts`
+4. Execute o scraper para validar
+
+### Detectar Novas Categorias
+1. Explore o site godofprompt.ai
+2. Identifique novas categorias
+3. Adicione entradas no YAML
+4. Teste a extração
+
+## 📈 Monitoramento
+
+### Taxa de Sucesso
+```python
+def calculate_success_rate(extracted, expected):
+    return (len(extracted) / expected) * 100 if expected > 0 else 0
+```
+
+### Relatório de Discrepâncias
+```python
+def report_discrepancies(results):
+    for cat_name, data in results.items():
+        extracted = len(data['prompts'])
+        expected = data['quantidade_esperada']
+        diff = extracted - expected
+
+        if abs(diff) > 10:  # Diferença significativa
+            print(f"⚠️  {cat_name}: esperado {expected}, extraído {extracted} ({diff:+d})")
+```

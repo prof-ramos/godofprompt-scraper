@@ -1,0 +1,813 @@
+---
+description: Técnicas de automação de login e bypass de paywall
+---
+
+# 🔐 Automação de Login e Bypass de Paywall
+
+Sistema robusto para **automatizar login** e **bypass de paywall** baseado no guia avançado de scraping.
+
+## 🚪 Sistema de Login Robusto
+
+### Classe Base de Login
+```python
+class LoginAutomation:
+    """Sistema completo de automação de login."""
+
+    def __init__(self, driver, credentials, login_url):
+        self.driver = driver
+        self.credentials = credentials
+        self.login_url = login_url
+        self.session_cookies = None
+        self.session_headers = None
+        self.login_attempts = 0
+        self.max_attempts = 3
+
+    def perform_login(self):
+        """Executa login com múltiplas tentativas e validação."""
+        for attempt in range(1, self.max_attempts + 1):
+            try:
+                logging.info(f"Tentativa de login {attempt}/{self.max_attempts}")
+
+                success = self._attempt_login()
+                if success:
+                    logging.info("Login realizado com sucesso")
+                    self._save_session()
+                    return True
+
+            except Exception as e:
+                logging.warning(f"Tentativa {attempt} falhou: {e}")
+
+            # Aguardar antes da próxima tentativa
+            if attempt < self.max_attempts:
+                backoff_time = self._calculate_backoff(attempt)
+                logging.info(f"Aguardando {backoff_time}s antes da próxima tentativa")
+                time.sleep(backoff_time)
+
+        logging.error("Todas as tentativas de login falharam")
+        return False
+
+    def _attempt_login(self):
+        """Tentativa individual de login."""
+        self.driver.get(self.login_url)
+        time.sleep(2)  # Aguardar carregamento
+
+        # Localizar campos de login
+        username_field = self._find_login_field()
+        password_field = self._find_password_field()
+        submit_button = self._find_submit_button()
+
+        if not all([username_field, password_field, submit_button]):
+            raise Exception("Não foi possível localizar campos de login")
+
+        # Preencher credenciais
+        username_field.clear()
+        username_field.send_keys(self.credentials['username'])
+
+        password_field.clear()
+        password_field.send_keys(self.credentials['password'])
+
+        # Submeter formulário
+        submit_button.click()
+        time.sleep(3)  # Aguardar processamento
+
+        # Validar sucesso
+        return self._validate_login_success()
+
+    def _find_login_field(self):
+        """Localiza campo de usuário/email."""
+        selectors = [
+            'input[name="email"]',
+            'input[name="username"]',
+            'input[name="login"]',
+            'input[type="email"]',
+            'input[placeholder*="email" i]',
+            'input[placeholder*="login" i]',
+            'input[id*="email" i]',
+            'input[id*="login" i]'
+        ]
+
+        return self._find_element_by_selectors(selectors)
+
+    def _find_password_field(self):
+        """Localiza campo de senha."""
+        selectors = [
+            'input[name="password"]',
+            'input[type="password"]',
+            'input[placeholder*="password" i]',
+            'input[placeholder*="senha" i]',
+            'input[id*="password" i]'
+        ]
+
+        return self._find_element_by_selectors(selectors)
+
+    def _find_submit_button(self):
+        """Localiza botão de submit."""
+        selectors = [
+            'button[type="submit"]',
+            'input[type="submit"]',
+            'button[name="login"]',
+            'button[id*="login" i]',
+            'button[class*="login" i]',
+            '.login-button',
+            '#login-button'
+        ]
+
+        return self._find_element_by_selectors(selectors)
+
+    def _find_element_by_selectors(self, selectors):
+        """Busca elemento por múltiplos seletores."""
+        for selector in selectors:
+            try:
+                element = self.driver.find_element(By.CSS_SELECTOR, selector)
+                if element.is_displayed():
+                    return element
+            except:
+                continue
+        return None
+
+    def _validate_login_success(self):
+        """Valida se login foi bem-sucedido."""
+        # Verificar indicadores de sucesso
+        success_indicators = [
+            '/dashboard', '/home', '/profile',
+            'logout', 'signout', 'welcome',
+            'bem-vindo', 'dashboard'
+        ]
+
+        current_url = self.driver.current_url.lower()
+        page_source = self.driver.page_source.lower()
+
+        for indicator in success_indicators:
+            if indicator in current_url or indicator in page_source:
+                return True
+
+        # Verificar ausência de indicadores de falha
+        failure_indicators = [
+            'login', 'signin', 'auth', 'error',
+            'invalid', 'incorrect', 'failed'
+        ]
+
+        for indicator in failure_indicators:
+            if indicator in current_url or indicator in page_source:
+                return False
+
+        return False
+
+    def _calculate_backoff(self, attempt):
+        """Calcula tempo de espera entre tentativas."""
+        base_delay = 5
+        return min(base_delay * (2 ** attempt), 60)  # Máximo 60s
+
+    def _save_session(self):
+        """Salva sessão para reutilização."""
+        try:
+            self.session_cookies = self.driver.get_cookies()
+            self.session_headers = {
+                'User-Agent': self.driver.execute_script("return navigator.userAgent"),
+                'Referer': self.driver.current_url
+            }
+
+            # Salvar em arquivo
+            session_data = {
+                'cookies': self.session_cookies,
+                'headers': self.session_headers,
+                'timestamp': time.time(),
+                'url': self.driver.current_url
+            }
+
+            with open('session_cache.json', 'w') as f:
+                json.dump(session_data, f, indent=2)
+
+            logging.info("Sessão salva com sucesso")
+
+        except Exception as e:
+            logging.error(f"Erro salvando sessão: {e}")
+
+    def load_session(self):
+        """Carrega sessão salva."""
+        try:
+            if os.path.exists('session_cache.json'):
+                with open('session_cache.json', 'r') as f:
+                    session_data = json.load(f)
+
+                # Verificar se sessão ainda é válida (24h)
+                if time.time() - session_data['timestamp'] < 86400:
+                    self.session_cookies = session_data['cookies']
+                    self.session_headers = session_data['headers']
+
+                    # Aplicar cookies no driver
+                    self.driver.get(session_data['url'])
+                    for cookie in self.session_cookies:
+                        try:
+                            self.driver.add_cookie(cookie)
+                        except Exception as e:
+                            logging.warning(f"Erro aplicando cookie: {e}")
+
+                    logging.info("Sessão carregada com sucesso")
+                    return True
+
+            logging.info("Sessão expirada ou não encontrada")
+            return False
+
+        except Exception as e:
+            logging.error(f"Erro carregando sessão: {e}")
+            return False
+
+    def is_session_valid(self):
+        """Verifica se sessão ainda é válida."""
+        if not self.session_cookies:
+            return False
+
+        try:
+            # Fazer requisição de teste
+            test_url = self.login_url.replace('login', 'dashboard')
+            self.driver.get(test_url)
+
+            # Verificar se não foi redirecionado para login
+            current_url = self.driver.current_url.lower()
+            return 'login' not in current_url and 'signin' not in current_url
+
+        except Exception as e:
+            logging.warning(f"Erro verificando sessão: {e}")
+            return False
+```
+
+### Estratégia de Login com Fallback
+```python
+class AdvancedLoginSystem:
+    """Sistema de login com múltiplas estratégias."""
+
+    def __init__(self, driver, credentials):
+        self.driver = driver
+        self.credentials = credentials
+        self.strategies = [
+            self._strategy_direct_form,
+            self._strategy_api_login,
+            self._strategy_social_login,
+            self._strategy_cookie_injection
+        ]
+
+    def login_with_fallback(self):
+        """Tenta login com diferentes estratégias."""
+        for i, strategy in enumerate(self.strategies, 1):
+            try:
+                logging.info(f"Tentando estratégia de login {i}: {strategy.__name__}")
+                success = strategy()
+                if success:
+                    logging.info(f"Login bem-sucedido com estratégia {i}")
+                    return True
+            except Exception as e:
+                logging.warning(f"Estratégia {i} falhou: {e}")
+                continue
+
+        logging.error("Todas as estratégias de login falharam")
+        return False
+
+    def _strategy_direct_form(self):
+        """Estratégia: Preenchimento direto do formulário."""
+        login_system = LoginAutomation(self.driver, self.credentials, self._get_login_url())
+        return login_system.perform_login()
+
+    def _strategy_api_login(self):
+        """Estratégia: Login via API."""
+        # Implementar login via API REST
+        # Usar requests para fazer POST para endpoint de login
+        # Aplicar cookies resultantes no driver
+        pass
+
+    def _strategy_social_login(self):
+        """Estratégia: Login via OAuth/Social."""
+        # Implementar login via Google, Facebook, etc.
+        # Automatizar cliques em botões sociais
+        pass
+
+    def _strategy_cookie_injection(self):
+        """Estratégia: Injeção de cookies salvos."""
+        # Carregar cookies de sessões anteriores
+        # Aplicar no driver atual
+        pass
+
+    def _get_login_url(self):
+        """Detecta URL de login automaticamente."""
+        # Tentar URLs comuns de login
+        login_urls = [
+            '/login',
+            '/signin',
+            '/auth/login',
+            '/account/login'
+        ]
+
+        base_url = f"{self.driver.current_url.split('/')[0]}//{self.driver.current_url.split('/')[2]}"
+
+        for path in login_urls:
+            test_url = base_url + path
+            try:
+                self.driver.get(test_url)
+                if 'login' in self.driver.page_source.lower():
+                    return test_url
+            except:
+                continue
+
+        return base_url + '/login'  # Fallback
+```
+
+## 🛡️ Bypass de Paywall
+
+### Detector de Paywall
+```python
+class PaywallDetector:
+    """Detecta e classifica tipos de paywall."""
+
+    def __init__(self, driver):
+        self.driver = driver
+        self.paywall_indicators = {
+            'hard': [
+                'subscribe', 'premium', 'paywall', 'upgrade',
+                'unlock', 'access denied', 'premium content'
+            ],
+            'soft': [
+                'free articles', 'limit reached', 'sign up',
+                'create account', 'register'
+            ],
+            'metered': [
+                'article limit', 'monthly limit', 'daily limit',
+                'free reads remaining'
+            ]
+        }
+
+    def detect_paywall(self):
+        """Detecta presença e tipo de paywall."""
+        page_source = self.driver.page_source.lower()
+
+        for paywall_type, indicators in self.paywall_indicators.items():
+            if any(indicator in page_source for indicator in indicators):
+                return {
+                    'detected': True,
+                    'type': paywall_type,
+                    'confidence': self._calculate_confidence(page_source, indicators)
+                }
+
+        return {'detected': False, 'type': None, 'confidence': 0}
+
+    def _calculate_confidence(self, page_source, indicators):
+        """Calcula confiança da detecção."""
+        matches = sum(1 for indicator in indicators if indicator in page_source)
+        return matches / len(indicators)
+```
+
+### Estratégias de Bypass
+```python
+class PaywallBypass:
+    """Sistema completo de bypass de paywall."""
+
+    def __init__(self, driver, login_system):
+        self.driver = driver
+        self.login_system = login_system
+        self.bypass_strategies = {
+            'hard': self._bypass_hard_paywall,
+            'soft': self._bypass_soft_paywall,
+            'metered': self._bypass_metered_paywall
+        }
+
+    def attempt_bypass(self, paywall_info):
+        """Tenta bypass baseado no tipo de paywall detectado."""
+        if not paywall_info['detected']:
+            return True  # Sem paywall
+
+        paywall_type = paywall_info['type']
+        confidence = paywall_info['confidence']
+
+        if confidence < 0.3:
+            logging.info("Paywall detectado mas confiança baixa, prosseguindo")
+            return True
+
+        if paywall_type in self.bypass_strategies:
+            logging.info(f"Tentando bypass de paywall tipo: {paywall_type}")
+            return self.bypass_strategies[paywall_type]()
+
+        logging.warning(f"Tipo de paywall não suportado: {paywall_type}")
+        return False
+
+    def _bypass_hard_paywall(self):
+        """Bypass paywall rígido - requer login."""
+        try:
+            # Tentar login automático
+            if self.login_system.login_with_fallback():
+                logging.info("Paywall rígido bypassado com login")
+                return True
+
+            # Fallback: tentar encontrar botão de acesso limitado
+            access_buttons = self.driver.find_elements(By.CSS_SELECTOR,
+                'button[class*="free"], a[class*="free"], [class*="access"]')
+
+            for button in access_buttons:
+                if button.is_displayed():
+                    button.click()
+                    time.sleep(2)
+                    if not self._is_paywall_present():
+                        logging.info("Paywall rígido bypassado com botão alternativo")
+                        return True
+
+        except Exception as e:
+            logging.error(f"Erro no bypass de paywall rígido: {e}")
+
+        return False
+
+    def _bypass_soft_paywall(self):
+        """Bypass paywall suave - incentiva registro."""
+        try:
+            # Procurar e clicar em botões de "continuar lendo"
+            continue_buttons = self.driver.find_elements(By.CSS_SELECTOR,
+                'button[class*="continue"], a[class*="continue"], [class*="read-more"]')
+
+            for button in continue_buttons:
+                if button.is_displayed():
+                    button.click()
+                    time.sleep(2)
+                    if not self._is_paywall_present():
+                        logging.info("Paywall suave bypassado")
+                        return True
+
+            # Tentar fechar modais
+            close_buttons = self.driver.find_elements(By.CSS_SELECTOR,
+                '.modal-close, .close, [class*="close"], [aria-label*="close"]')
+
+            for button in close_buttons:
+                try:
+                    button.click()
+                    time.sleep(1)
+                    if not self._is_paywall_present():
+                        logging.info("Paywall suave bypassado fechando modal")
+                        return True
+                except:
+                    continue
+
+        except Exception as e:
+            logging.error(f"Erro no bypass de paywall suave: {e}")
+
+        return False
+
+    def _bypass_metered_paywall(self):
+        """Bypass paywall por limite - tenta reset ou contorno."""
+        try:
+            # Tentar abrir em nova aba/incógnito
+            current_url = self.driver.current_url
+            self.driver.execute_script("window.open(arguments[0], '_blank')", current_url)
+            self.driver.switch_to.window(self.driver.window_handles[-1])
+
+            time.sleep(3)
+            if not self._is_paywall_present():
+                logging.info("Paywall metered bypassado com nova aba")
+                return True
+
+            # Voltar para aba original
+            self.driver.close()
+            self.driver.switch_to.window(self.driver.window_handles[0])
+
+        except Exception as e:
+            logging.error(f"Erro no bypass de paywall metered: {e}")
+
+        return False
+
+    def _is_paywall_present(self):
+        """Verifica se paywall ainda está presente."""
+        detector = PaywallDetector(self.driver)
+        result = detector.detect_paywall()
+        return result['detected']
+```
+
+### Sistema Integrado de Acesso
+```python
+class IntegratedAccessSystem:
+    """Sistema integrado de login e bypass de paywall."""
+
+    def __init__(self, driver, credentials=None):
+        self.driver = driver
+        self.credentials = credentials
+        self.login_system = AdvancedLoginSystem(driver, credentials) if credentials else None
+        self.paywall_bypass = PaywallBypass(driver, self.login_system) if self.login_system else None
+        self.paywall_detector = PaywallDetector(driver)
+
+    def ensure_access(self, target_url):
+        """Garante acesso à URL alvo, lidando com login e paywall."""
+        logging.info(f"Garantindo acesso a: {target_url}")
+
+        # Navegar para URL alvo
+        self.driver.get(target_url)
+        time.sleep(3)
+
+        # Verificar paywall
+        paywall_info = self.paywall_detector.detect_paywall()
+
+        if paywall_info['detected']:
+            logging.info(f"Paywall detectado: {paywall_info['type']} (confiança: {paywall_info['confidence']:.1f})")
+
+            # Tentar bypass
+            if self.paywall_bypass:
+                success = self.paywall_bypass.attempt_bypass(paywall_info)
+                if success:
+                    logging.info("Bypass de paywall bem-sucedido")
+                    return True
+                else:
+                    logging.warning("Falha no bypass de paywall")
+
+            return False
+        else:
+            logging.info("Nenhum paywall detectado")
+            return True
+
+    def maintain_session(self):
+        """Mantém sessão ativa e válida."""
+        if self.login_system:
+            # Verificar validade da sessão
+            if not self.login_system.is_session_valid():
+                logging.info("Sessão expirada, fazendo login novamente")
+                return self.login_system.login_with_fallback()
+
+        return True
+
+    def get_session_status(self):
+        """Retorna status completo da sessão."""
+        return {
+            'has_credentials': self.credentials is not None,
+            'login_system_active': self.login_system is not None,
+            'paywall_bypass_active': self.paywall_bypass is not None,
+            'session_valid': self.login_system.is_session_valid() if self.login_system else False
+        }
+```
+
+## 🔄 Persistência de Sessão
+
+### Gerenciador de Sessão Avançado
+```python
+class SessionManager:
+    """Gerencia múltiplas sessões e credenciais."""
+
+    def __init__(self, session_dir="sessions"):
+        self.session_dir = Path(session_dir)
+        self.session_dir.mkdir(exist_ok=True)
+        self.active_sessions = {}
+
+    def create_session(self, name, credentials, driver=None):
+        """Cria nova sessão nomeada."""
+        session_path = self.session_dir / f"{name}.json"
+
+        session_data = {
+            'name': name,
+            'credentials': self._encrypt_credentials(credentials),
+            'cookies': driver.get_cookies() if driver else [],
+            'created_at': time.time(),
+            'last_used': time.time(),
+            'valid_until': time.time() + 86400  # 24h
+        }
+
+        with open(session_path, 'w') as f:
+            json.dump(session_data, f, indent=2)
+
+        self.active_sessions[name] = session_data
+        return session_data
+
+    def load_session(self, name):
+        """Carrega sessão salva."""
+        session_path = self.session_dir / f"{name}.json"
+
+        if not session_path.exists():
+            return None
+
+        try:
+            with open(session_path, 'r') as f:
+                session_data = json.load(f)
+
+            # Verificar validade
+            if time.time() > session_data['valid_until']:
+                logging.warning(f"Sessão {name} expirada")
+                return None
+
+            # Descriptografar credenciais
+            session_data['credentials'] = self._decrypt_credentials(session_data['credentials'])
+
+            # Atualizar último uso
+            session_data['last_used'] = time.time()
+            with open(session_path, 'w') as f:
+                json.dump(session_data, f, indent=2)
+
+            self.active_sessions[name] = session_data
+            return session_data
+
+        except Exception as e:
+            logging.error(f"Erro carregando sessão {name}: {e}")
+            return None
+
+    def list_sessions(self):
+        """Lista todas as sessões disponíveis."""
+        sessions = []
+        for session_file in self.session_dir.glob("*.json"):
+            try:
+                with open(session_file, 'r') as f:
+                    session_data = json.load(f)
+                sessions.append({
+                    'name': session_data['name'],
+                    'created_at': session_data['created_at'],
+                    'last_used': session_data['last_used'],
+                    'valid_until': session_data['valid_until'],
+                    'is_expired': time.time() > session_data['valid_until']
+                })
+            except:
+                continue
+
+        return sessions
+
+    def cleanup_expired_sessions(self):
+        """Remove sessões expiradas."""
+        current_time = time.time()
+        expired_count = 0
+
+        for session_file in self.session_dir.glob("*.json"):
+            try:
+                with open(session_file, 'r') as f:
+                    session_data = json.load(f)
+
+                if current_time > session_data['valid_until']:
+                    session_file.unlink()
+                    expired_count += 1
+            except:
+                continue
+
+        logging.info(f"Removidas {expired_count} sessões expiradas")
+        return expired_count
+
+    def _encrypt_credentials(self, credentials):
+        """Criptografa credenciais (implementação básica)."""
+        # Em produção, usar criptografia real
+        import base64
+        cred_str = json.dumps(credentials)
+        return base64.b64encode(cred_str.encode()).decode()
+
+    def _decrypt_credentials(self, encrypted):
+        """Descriptografa credenciais."""
+        import base64
+        cred_str = base64.b64decode(encrypted).decode()
+        return json.loads(cred_str)
+```
+
+## 🏆 Estratégias Avançadas
+
+### Sistema de Login Distribuído
+```python
+class DistributedLoginSystem:
+    """Sistema de login distribuído para múltiplas contas."""
+
+    def __init__(self, driver_pool, credentials_list):
+        self.driver_pool = driver_pool
+        self.credentials_list = credentials_list
+        self.session_managers = {}
+
+    def login_all_accounts(self):
+        """Faz login em todas as contas simultaneamente."""
+        with ThreadPoolExecutor(max_workers=len(self.credentials_list)) as executor:
+            futures = []
+
+            for credentials in self.credentials_list:
+                driver = self.driver_pool.get_driver()
+                future = executor.submit(self._login_single_account, driver, credentials)
+                futures.append((future, driver, credentials))
+
+            results = []
+            for future, driver, credentials in futures:
+                try:
+                    result = future.result(timeout=60)
+                    results.append(result)
+                except Exception as e:
+                    logging.error(f"Erro no login da conta {credentials.get('username', 'N/A')}: {e}")
+                    results.append(False)
+                finally:
+                    self.driver_pool.return_driver(driver)
+
+            return results
+
+    def _login_single_account(self, driver, credentials):
+        """Faz login em uma única conta."""
+        try:
+            login_system = AdvancedLoginSystem(driver, credentials)
+            success = login_system.login_with_fallback()
+
+            if success:
+                # Salvar sessão
+                account_id = credentials.get('username', str(hash(str(credentials))))
+                session_manager = SessionManager()
+                session_manager.create_session(account_id, credentials, driver)
+
+            return success
+
+        except Exception as e:
+            logging.error(f"Erro no login: {e}")
+            return False
+```
+
+### Monitor de Sessão em Tempo Real
+```python
+class SessionMonitor:
+    """Monitora saúde das sessões ativamente."""
+
+    def __init__(self, session_manager, check_interval=300):
+        self.session_manager = session_manager
+        self.check_interval = check_interval
+        self.monitoring_active = False
+
+    def start_monitoring(self):
+        """Inicia monitoramento contínuo."""
+        self.monitoring_active = True
+
+        def monitor_loop():
+            while self.monitoring_active:
+                try:
+                    self._check_all_sessions()
+                    self._cleanup_expired_sessions()
+                except Exception as e:
+                    logging.error(f"Erro no monitoramento: {e}")
+
+                time.sleep(self.check_interval)
+
+        import threading
+        monitor_thread = threading.Thread(target=monitor_loop, daemon=True)
+        monitor_thread.start()
+        logging.info("Monitoramento de sessão iniciado")
+
+    def stop_monitoring(self):
+        """Para monitoramento."""
+        self.monitoring_active = False
+        logging.info("Monitoramento de sessão parado")
+
+    def _check_all_sessions(self):
+        """Verifica validade de todas as sessões."""
+        sessions = self.session_manager.list_sessions()
+        invalid_count = 0
+
+        for session in sessions:
+            if not session['is_expired']:
+                # Verificar se sessão ainda funciona
+                if not self._test_session_validity(session['name']):
+                    invalid_count += 1
+                    logging.warning(f"Sessão inválida detectada: {session['name']}")
+
+        if invalid_count > 0:
+            logging.info(f"Encontradas {invalid_count} sessões inválidas")
+
+    def _test_session_validity(self, session_name):
+        """Testa se uma sessão específica ainda é válida."""
+        # Implementar teste de sessão
+        # Fazer requisição de teste e verificar resposta
+        return True  # Placeholder
+
+    def _cleanup_expired_sessions(self):
+        """Limpa sessões expiradas."""
+        cleaned = self.session_manager.cleanup_expired_sessions()
+        if cleaned > 0:
+            logging.info(f"Limpas {cleaned} sessões expiradas")
+```
+
+## 📋 Melhores Práticas
+
+### Checklist de Segurança
+- [ ] Credenciais armazenadas de forma segura
+- [ ] Sessões criptografadas em disco
+- [ ] Timeout automático de sessões
+- [ ] Limitação de tentativas de login
+- [ ] Logs sem informações sensíveis
+- [ ] Validação de certificados SSL
+
+### Configuração de Produção
+```python
+production_login_config = {
+    'max_login_attempts': 3,
+    'session_timeout_hours': 24,
+    'login_backoff_base_seconds': 5,
+    'login_backoff_max_seconds': 60,
+    'session_encryption_enabled': True,
+    'automatic_session_refresh': True,
+    'multi_account_support': True,
+    'session_monitoring_enabled': True,
+    'paywall_detection_enabled': True,
+    'bypass_fallback_enabled': True
+}
+```
+
+### Tratamento de Erros Avançado
+```python
+def handle_login_errors(error_type, attempt_number, credentials):
+    """Tratamento avançado de erros de login."""
+
+    error_strategies = {
+        'invalid_credentials': lambda: _handle_invalid_credentials(credentials),
+        'account_locked': lambda: _handle_account_locked(credentials),
+        'captcha_required': lambda: _handle_captcha_required(),
+        'network_error': lambda: _handle_network_error(attempt_number),
+        'rate_limited': lambda: _handle_rate_limited(attempt_number)
+    }
+
+    if error_type in error_strategies:
+        return error_strategies[error_type]()
+    else:
+        logging.error(f"Tipo de erro não tratado: {error_type}")
+        return False
+```

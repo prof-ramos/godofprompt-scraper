@@ -1,0 +1,56 @@
+---
+alwaysApply: true
+description: Estrutura geral do projeto GodOfPrompt Scraper
+---
+
+# 🏗️ Estrutura do Projeto GodOfPrompt Scraper
+
+Este projeto é um **web scraper** para extrair links de prompts do site godofprompt.ai.
+
+## 📁 Arquivos Principais
+
+### [extract_links.py](mdc:extract_links.py)
+- **Script principal** para extração de links
+- Usa **Selenium WebDriver** para navegação dinâmica
+- Suporte a **paginação automática**
+- Dois modos: completo e teste
+
+### [links.yaml](mdc:links.yaml)
+- **Configuração das categorias** de prompts
+- Contém URLs base e quantidades esperadas
+- Formato estruturado para fácil manutenção
+
+### [README.md](mdc:README.md)
+- Documentação básica do projeto
+- Pode conter instruções de uso
+
+## 🚀 Como Usar
+
+### Modo Teste (Recomendado primeiro)
+```bash
+python3 extract_links.py --test "Nome da Categoria"
+```
+
+### Modo Completo
+```bash
+python3 extract_links.py
+```
+
+### Ambiente Virtual
+```bash
+source venv/bin/activate
+python3 extract_links.py
+```
+
+## 📊 Saídas
+
+- **JSON estruturado** com todos os links extraídos
+- **Arquivo de log** (`extraction_log.txt`) com detalhes
+- **Estatísticas** de sucesso por categoria
+
+## ⚠️ Considerações Técnicas
+
+- **Selenium** para sites dinâmicos (JavaScript)
+- **Chrome headless** para execução em background
+- **Tratamento de erros robusto** com logging
+- **Limitação de páginas** (máx. 50 por categoria)

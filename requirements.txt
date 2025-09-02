@@ -1,0 +1,30 @@
+# Core dependencies
+selenium==4.35.0
+beautifulsoup4==4.13.5
+requests==2.32.5
+lxml==6.0.1
+
+# Configuration and data processing
+PyYAML==6.0.2
+
+# WebDriver management
+webdriver-manager==4.0.2
+
+# Development and testing
+pytest>=7.0.0
+pytest-html>=3.1.0
+
+# Optional: Performance optimization
+psutil>=5.9.0
+memory-profiler>=0.61.0
+
+# Optional: Advanced scraping (if needed)
+# jina-ai>=0.2.0
+# firecrawl-py>=0.0.5
+# agentql>=0.1.0
+# multion>=0.1.0
+
+# Code quality
+black>=22.0.0
+flake8>=5.0.0
+mypy>=1.0.0

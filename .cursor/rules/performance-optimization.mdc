@@ -1,0 +1,469 @@
+---
+description: Otimizações de performance para web scraping
+---
+
+# ⚡ Otimizações de Performance
+
+Técnicas avançadas para **otimizar** e **acelerar** o processo de extração de dados.
+
+## 🚀 Estratégias de Performance
+
+### Processamento Concorrente
+```python
+from concurrent.futures import ThreadPoolExecutor, as_completed
+import time
+
+def extract_multiple_categories_concurrent(categories, max_workers=3):
+    """Extrai múltiplas categorias simultaneamente."""
+    results = {}
+
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        # Submeter todas as tarefas
+        future_to_category = {
+            executor.submit(extract_category_links, cat): cat['nome']
+            for cat in categories
+        }
+
+        # Processar conforme concluídas
+        for future in as_completed(future_to_category):
+            category_name = future_to_category[future]
+            try:
+                prompts = future.result()
+                results[category_name] = prompts
+                logging.info(f"✅ {category_name}: {len(prompts)} prompts extraídos")
+            except Exception as e:
+                logging.error(f"❌ Erro em {category_name}: {e}")
+                results[category_name] = []
+
+    return results
+```
+
+### Otimização de Seletores
+```python
+# ❌ Lento - Busca geral
+elements = driver.find_elements(By.TAG_NAME, "a")
+
+# ✅ Rápido - Seletor específico
+elements = driver.find_elements(By.CSS_SELECTOR, '[wized="plp_prompt_item_link"]')
+
+# ✅ Ultra-rápido - XPath otimizado
+elements = driver.find_elements(By.XPATH, "//a[@wized='plp_prompt_item_link']")
+```
+
+### Cache Inteligente
+```python
+from functools import lru_cache
+import hashlib
+
+@lru_cache(maxsize=100)
+def get_page_content_hash(url):
+    """Cache do conteúdo das páginas baseado em hash."""
+    response = requests.get(url)
+    return hashlib.md5(response.content).hexdigest()
+
+def is_page_changed(url, last_hash):
+    """Verifica se a página mudou desde a última visita."""
+    current_hash = get_page_content_hash(url)
+    return current_hash != last_hash
+```
+
+## 📊 Otimizações de Memória
+
+### Processamento em Streaming
+```python
+def process_large_dataset_streaming(file_path, batch_size=1000):
+    """Processa datasets grandes em lotes para economizar memória."""
+    results = []
+
+    with open(file_path, 'r', encoding='utf-8') as f:
+        batch = []
+        for line in f:
+            batch.append(json.loads(line))
+
+            if len(batch) >= batch_size:
+                # Processar lote
+                processed_batch = process_batch(batch)
+                results.extend(processed_batch)
+                batch = []
+
+        # Processar último lote
+        if batch:
+            processed_batch = process_batch(batch)
+            results.extend(processed_batch)
+
+    return results
+```
+
+### Gerenciamento de Recursos
+```python
+import psutil
+import gc
+
+def monitor_memory_usage():
+    """Monitora uso de memória durante execução."""
+    process = psutil.Process()
+    memory_info = process.memory_info()
+
+    logging.info(".2f"
+    # Forçar garbage collection se necessário
+    if memory_info.rss > 500 * 1024 * 1024:  # 500MB
+        gc.collect()
+        logging.info("🧹 Garbage collection executado")
+```
+
+## ⏱️ Otimizações de Tempo
+
+### Análise de Gargalos
+```python
+import cProfile
+import pstats
+
+def profile_extraction():
+    """Profile do código para identificar gargalos."""
+    profiler = cProfile.Profile()
+    profiler.enable()
+
+    # Código a ser analisado
+    results = main_extraction_process()
+
+    profiler.disable()
+
+    # Análise dos resultados
+    stats = pstats.Stats(profiler)
+    stats.sort_stats('cumulative').print_stats(20)
+
+    return results
+```
+
+### Lazy Loading Otimizado
+```python
+def scroll_to_load_all_content(driver, max_scrolls=10):
+    """Scroll otimizado para carregar todo conteúdo."""
+    last_height = driver.execute_script("return document.body.scrollHeight")
+    scrolls = 0
+
+    while scrolls < max_scrolls:
+        # Scroll para o final
+        driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+
+        # Aguardar carregamento
+        time.sleep(2)
+
+        # Verificar se a altura mudou
+        new_height = driver.execute_script("return document.body.scrollHeight")
+
+        if new_height == last_height:
+            break
+
+        last_height = new_height
+        scrolls += 1
+
+    logging.info(f"Scroll concluído após {scrolls} iterações")
+```
+
+## 🔄 Estratégias de Retry Inteligentes
+
+### Exponential Backoff com Jitter
+```python
+import random
+import math
+
+def calculate_backoff_delay(attempt, base_delay=1, max_delay=60):
+    """Calcula delay com jitter para evitar thundering herd."""
+    exponential_delay = base_delay * (2 ** attempt)
+    jitter = random.uniform(0.1, 1.0)
+    delay = min(exponential_delay * jitter, max_delay)
+
+    return delay
+
+def retry_with_backoff(func, max_attempts=5, **kwargs):
+    """Executa função com retry inteligente."""
+    for attempt in range(max_attempts):
+        try:
+            return func(**kwargs)
+        except Exception as e:
+            if attempt == max_attempts - 1:
+                raise e
+
+            delay = calculate_backoff_delay(attempt)
+            logging.warning(".2f"            time.sleep(delay)
+```
+
+### Circuit Breaker Pattern
+```python
+class IntelligentCircuitBreaker:
+    """Circuit breaker que aprende com padrões de falha."""
+
+    def __init__(self, failure_threshold=5, recovery_timeout=300):
+        self.failure_threshold = failure_threshold
+        self.recovery_timeout = recovery_timeout
+        self.failures = 0
+        self.last_failure_time = 0
+        self.state = 'CLOSED'  # CLOSED, OPEN, HALF_OPEN
+
+    def should_attempt(self):
+        """Decide se deve tentar a operação."""
+        current_time = time.time()
+
+        if self.state == 'CLOSED':
+            return True
+
+        if self.state == 'OPEN':
+            if current_time - self.last_failure_time > self.recovery_timeout:
+                self.state = 'HALF_OPEN'
+                return True
+            return False
+
+        # HALF_OPEN: tentar uma vez
+        return True
+
+    def record_success(self):
+        """Registra sucesso e volta ao estado normal."""
+        self.failures = 0
+        self.state = 'CLOSED'
+
+    def record_failure(self):
+        """Registra falha e atualiza estado."""
+        self.failures += 1
+        self.last_failure_time = time.time()
+
+        if self.failures >= self.failure_threshold:
+            self.state = 'OPEN'
+        elif self.state == 'HALF_OPEN':
+            self.state = 'OPEN'
+```
+
+## 📈 Monitoramento de Performance
+
+### Métricas em Tempo Real
+```python
+class PerformanceMonitor:
+    """Monitora performance durante execução."""
+
+    def __init__(self):
+        self.start_time = time.time()
+        self.operations = {}
+        self.errors = {}
+
+    def start_operation(self, name):
+        """Inicia monitoramento de operação."""
+        self.operations[name] = {
+            'start': time.time(),
+            'count': 0,
+            'errors': 0
+        }
+
+    def end_operation(self, name, success=True):
+        """Finaliza monitoramento de operação."""
+        if name in self.operations:
+            self.operations[name]['count'] += 1
+            if not success:
+                self.operations[name]['errors'] += 1
+
+    def get_report(self):
+        """Gera relatório de performance."""
+        elapsed = time.time() - self.start_time
+
+        report = {
+            'total_time': elapsed,
+            'operations_per_second': sum(op['count'] for op in self.operations.values()) / elapsed,
+            'error_rate': sum(op['errors'] for op in self.operations.values()) /
+                         max(sum(op['count'] for op in self.operations.values()), 1) * 100,
+            'details': {}
+        }
+
+        for name, data in self.operations.items():
+            duration = time.time() - data['start']
+            report['details'][name] = {
+                'count': data['count'],
+                'errors': data['errors'],
+                'avg_time': duration / max(data['count'], 1),
+                'error_rate': data['errors'] / max(data['count'], 1) * 100
+            }
+
+        return report
+```
+
+## 🏗️ Arquitetura Otimizada
+
+### Pipeline de Processamento
+```python
+from queue import Queue
+from threading import Thread
+
+class ScrapingPipeline:
+    """Pipeline assíncrono para processamento otimizado."""
+
+    def __init__(self, num_workers=4):
+        self.queue = Queue()
+        self.workers = []
+        self.num_workers = num_workers
+        self.results = []
+
+    def worker(self):
+        """Worker thread para processamento."""
+        while True:
+            task = self.queue.get()
+            if task is None:
+                break
+
+            try:
+                result = self.process_task(task)
+                self.results.append(result)
+            except Exception as e:
+                logging.error(f"Erro processando tarefa: {e}")
+            finally:
+                self.queue.task_done()
+
+    def start(self):
+        """Inicia workers."""
+        for _ in range(self.num_workers):
+            worker_thread = Thread(target=self.worker)
+            worker_thread.daemon = True
+            worker_thread.start()
+            self.workers.append(worker_thread)
+
+    def add_task(self, task):
+        """Adiciona tarefa à fila."""
+        self.queue.put(task)
+
+    def wait_completion(self):
+        """Aguarda conclusão de todas as tarefas."""
+        self.queue.join()
+        for _ in self.workers:
+            self.queue.put(None)
+
+    def process_task(self, task):
+        """Processa uma tarefa individual."""
+        # Implementar lógica específica
+        return task
+
+# Uso
+pipeline = ScrapingPipeline(num_workers=4)
+pipeline.start()
+
+# Adicionar tarefas
+for category in categories:
+    pipeline.add_task(category)
+
+# Aguardar conclusão
+pipeline.wait_completion()
+
+results = pipeline.results
+```
+
+## 🔧 Otimizações de Código
+
+### Fast HTML Parsing
+```python
+# Usar lxml para parsing mais rápido
+from lxml import html, etree
+
+def parse_html_fast(html_content):
+    """Parsing HTML otimizado com lxml."""
+    tree = html.fromstring(html_content)
+
+    # XPath mais eficiente que CSS selectors
+    links = tree.xpath('//a[@wized="plp_prompt_item_link"]/@href')
+
+    return links
+```
+
+### Memoização de Funções
+```python
+from functools import lru_cache
+
+@lru_cache(maxsize=128)
+def normalize_url(url, base_url="https://www.godofprompt.ai"):
+    """Normaliza URLs com cache."""
+    if url.startswith('/'):
+        return f"{base_url}{url}"
+    return url
+
+@lru_cache(maxsize=256)
+def extract_domain(url):
+    """Extrai domínio de URL com cache."""
+    from urllib.parse import urlparse
+    parsed = urlparse(url)
+    return parsed.netloc
+```
+
+## 📊 Benchmarking
+
+### Comparação de Estratégias
+```python
+import time
+
+def benchmark_scraping_strategies():
+    """Compara diferentes estratégias de scraping."""
+    strategies = {
+        'requests_bs4': scrape_with_requests_bs4,
+        'selenium_basic': scrape_with_selenium_basic,
+        'selenium_optimized': scrape_with_selenium_optimized,
+        'concurrent': scrape_with_concurrent
+    }
+
+    results = {}
+
+    for name, strategy in strategies.items():
+        start_time = time.time()
+
+        try:
+            data = strategy()
+            execution_time = time.time() - start_time
+
+            results[name] = {
+                'success': True,
+                'time': execution_time,
+                'items': len(data),
+                'items_per_second': len(data) / execution_time
+            }
+        except Exception as e:
+            execution_time = time.time() - start_time
+            results[name] = {
+                'success': False,
+                'time': execution_time,
+                'error': str(e)
+            }
+
+    # Exibir resultados
+    print("🏁 Resultados do Benchmark:")
+    for name, result in results.items():
+        if result['success']:
+            print(".2f"        else:
+            print(".2f"
+    return results
+```
+
+## 🎯 Melhores Práticas de Performance
+
+### Checklist de Otimização
+- [ ] Usar seletores específicos (evitar `*`)
+- [ ] Implementar cache para requests repetidas
+- [ ] Processar dados em lotes
+- [ ] Usar processamento concorrente quando apropriado
+- [ ] Monitorar uso de memória e CPU
+- [ ] Implementar circuit breaker para falhas
+- [ ] Usar retry com backoff exponencial
+- [ ] Profile do código regularmente
+- [ ] Otimizar algoritmos de parsing
+- [ ] Usar fast parsers (lxml vs BeautifulSoup)
+
+### Métricas de Sucesso
+```python
+def calculate_performance_metrics(results, start_time, end_time):
+    """Calcula métricas de performance da extração."""
+    total_time = end_time - start_time
+    total_items = sum(len(cat_data['prompts']) for cat_data in results.values())
+
+    metrics = {
+        'total_execution_time': total_time,
+        'total_items_extracted': total_items,
+        'items_per_second': total_items / total_time,
+        'average_category_time': total_time / len(results),
+        'memory_peak': psutil.Process().memory_info().rss,
+        'success_rate': calculate_success_rate(results)
+    }
+
+    return metrics
+```

@@ -1,0 +1,305 @@
+---
+description: Técnicas avançadas de web scraping com Selenium
+---
+
+# 🌐 Web Scraping Avançado - Selenium
+
+Este projeto utiliza **Selenium WebDriver** para extrair dados dinâmicos do site godofprompt.ai.
+
+## 🎯 Por que Selenium?
+
+### Sites Dinâmicos
+O godofprompt.ai usa **JavaScript** para carregar conteúdo:
+- Prompts são carregados via AJAX
+- Paginação é controlada por JavaScript
+- Conteúdo depende de execução de scripts
+
+### Vantagens sobre Requests + BeautifulSoup
+- ✅ Renderiza JavaScript completamente
+- ✅ Interage com elementos dinâmicos
+- ✅ Lida com Single Page Applications (SPA)
+- ✅ Suporte a cookies e sessões
+
+## ⚙️ Configuração do Chrome Driver
+
+### Opções Essenciais
+```python
+from selenium.webdriver.chrome.options import Options
+
+def create_driver():
+    chrome_options = Options()
+
+    # Execução em background
+    chrome_options.add_argument("--headless")
+    chrome_options.add_argument("--no-sandbox")
+    chrome_options.add_argument("--disable-dev-shm-usage")
+    chrome_options.add_argument("--disable-gpu")
+
+    # Janela de tamanho fixo
+    chrome_options.add_argument("--window-size=1920,1080")
+
+    # User-Agent realista
+    chrome_options.add_argument("--user-agent=Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36")
+
+    # Anti-detecção de bot
+    chrome_options.add_argument("--disable-blink-features=AutomationControlled")
+    chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
+    chrome_options.add_experimental_option('useAutomationExtension', False)
+
+    return webdriver.Chrome(options=chrome_options)
+```
+
+## 🔍 Seletores Específicos do Site
+
+### Elementos Wized
+O site usa **Wized** para conteúdo dinâmico:
+```javascript
+// Todos os prompts da página
+'[wized="plp_prompt_item_all"]'
+
+// Link do prompt
+'[wized="plp_prompt_item_link"]'
+
+// Nome do prompt
+'[wized="plp_prompt_name"]'
+
+// ID do prompt
+'[wized="plp_prompt_id"]'
+```
+
+### Controles de Paginação
+```javascript
+// Botão próximo
+'[wized="pagin-next"]'
+
+// Página atual
+'[wized="pagin-cur-page"]'
+
+// Total de páginas
+'[wized="pagin-all-pages"]'
+```
+
+## 📜 Scripts JavaScript para Extração
+
+### Extrair Dados de uma Página
+```python
+def extract_prompts_from_page(driver):
+    script = """
+    return Array.from(document.querySelectorAll('[wized="plp_prompt_item_all"]')).map(el => {
+        const linkElement = el.querySelector('[wized="plp_prompt_item_link"]');
+        const nameElement = el.querySelector('[wized="plp_prompt_name"]');
+        const idElement = el.querySelector('[wized="plp_prompt_id"]');
+
+        return {
+            url: linkElement ? linkElement.href : null,
+            name: nameElement ? nameElement.textContent.trim() : '',
+            id: idElement ? idElement.textContent.trim() : '',
+            category: window.location.search.includes('category=') ?
+                new URLSearchParams(window.location.search).get('category') : 'unknown'
+        };
+    });
+    """
+
+    prompts = driver.execute_script(script)
+    return [p for p in prompts if p['url'] and p['url'] != '#']
+```
+
+### Verificar Paginação
+```python
+def get_pagination_info(driver):
+    script = """
+    const nextBtn = document.querySelector('[wized="pagin-next"]');
+    const currentPageEl = document.querySelector('[wized="pagin-cur-page"]');
+    const totalPagesEl = document.querySelector('[wized="pagin-all-pages"]');
+
+    return {
+        hasNext: nextBtn && !nextBtn.disabled && nextBtn.style.display !== 'none',
+        currentPage: currentPageEl ? parseInt(currentPageEl.textContent) : 1,
+        totalPages: totalPagesEl ? parseInt(totalPagesEl.textContent) : 1
+    };
+    """
+
+    return driver.execute_script(script)
+```
+
+## ⏱️ Esperas Inteligentes
+
+### Aguardar Carregamento Dinâmico
+```python
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+
+def wait_for_prompts_to_load(driver, timeout=30):
+    """Aguarda o carregamento dos prompts na página."""
+    try:
+        WebDriverWait(driver, timeout).until(
+            lambda d: d.execute_script(
+                "return document.querySelectorAll('[wized=\"plp_prompt_item_all\"]').length > 0"
+            )
+        )
+        time.sleep(2)  # Espera extra para estabilidade
+        return True
+    except Exception as e:
+        logging.error(f"Timeout aguardando prompts: {e}")
+        return False
+```
+
+### Aguardar Elemento Clicável
+```python
+def click_next_page(driver):
+    """Clica no botão 'próximo' com verificação de clicabilidade."""
+    try:
+        next_button = WebDriverWait(driver, 10).until(
+            EC.element_to_be_clickable((By.CSS_SELECTOR, '[wized="pagin-next"]'))
+        )
+        next_button.click()
+        time.sleep(3)  # Aguardar carregamento da nova página
+        return True
+    except Exception as e:
+        logging.error(f"Erro ao clicar próximo: {e}")
+        return False
+```
+
+## 🚀 Estratégias de Navegação
+
+### Navegação por Categoria
+```python
+def extract_category_links(category, driver=None):
+    if driver is None:
+        driver = create_driver()
+
+    try:
+        # Carregar página inicial
+        driver.get(category['link'])
+
+        # Aguardar carregamento
+        if not wait_for_prompts_to_load(driver):
+            return []
+
+        # Extrair primeira página
+        all_prompts = extract_prompts_from_page(driver)
+
+        # Navegar páginas restantes
+        pagination = get_pagination_info(driver)
+
+        for page in range(2, min(pagination['totalPages'] + 1, 51)):  # Máx 50 páginas
+            if not click_next_page(driver):
+                break
+
+            if not wait_for_prompts_to_load(driver):
+                break
+
+            new_prompts = extract_prompts_from_page(driver)
+
+            # Evitar duplicatas
+            for prompt in new_prompts:
+                if not any(p['url'] == prompt['url'] for p in all_prompts):
+                    all_prompts.append(prompt)
+
+        return all_prompts
+
+    finally:
+        if driver:
+            driver.quit()
+```
+
+## 🛡️ Anti-Detecção e Robustez
+
+### Headers e User-Agent
+```python
+chrome_options.add_argument(
+    "--user-agent=Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"
+)
+```
+
+### Pausas Estratégicas
+```python
+# Entre categorias
+time.sleep(2)
+
+# Após carregamento de página
+time.sleep(3)
+
+# Entre cliques
+time.sleep(1)
+```
+
+### Tratamento de Timeouts
+```python
+try:
+    WebDriverWait(driver, 20).until(condition)
+except TimeoutException:
+    logging.warning("Timeout - tentando abordagem alternativa")
+    # Fallback strategy
+```
+
+## 📊 Monitoramento e Debugging
+
+### Screenshot para Debug
+```python
+def take_screenshot(driver, filename):
+    """Salva screenshot para análise."""
+    driver.save_screenshot(f"debug_{filename}.png")
+```
+
+### Logs Detalhados
+```python
+logging.info(f"Página {page}: {len(new_prompts)} prompts encontrados")
+logging.error(f"Falha na extração da categoria {category['nome']}")
+```
+
+## 🔧 Troubleshooting Comum
+
+### Problema: Elementos não encontrados
+```python
+# Verificar se o seletor mudou
+current_html = driver.page_source
+with open('debug_page.html', 'w') as f:
+    f.write(current_html)
+```
+
+### Problema: Timeout frequente
+```python
+# Aumentar timeouts
+WebDriverWait(driver, 60).until(condition)
+
+# Ou reduzir frequência de requests
+time.sleep(5)
+```
+
+### Problema: Driver crash
+```python
+# Reinicializar driver
+if driver:
+    driver.quit()
+driver = create_driver()
+```
+
+## 📈 Otimizações de Performance
+
+### Reutilização do Driver
+```python
+# Mesmo driver para múltiplas categorias
+driver = create_driver()
+for category in categories:
+    results = extract_category_links(category, driver=driver)
+```
+
+### Processamento Paralelo
+```python
+from concurrent.futures import ThreadPoolExecutor
+
+def extract_multiple_categories(categories):
+    with ThreadPoolExecutor(max_workers=3) as executor:
+        futures = [executor.submit(extract_category_links, cat) for cat in categories]
+        return [future.result() for future in futures]
+```
+
+### Limitação de Recursos
+```python
+# Máximo de páginas por categoria
+max_pages = min(total_pages, 50)
+
+# Timeout global
+driver.set_page_load_timeout(30)
+```

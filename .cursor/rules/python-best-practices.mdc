@@ -1,0 +1,139 @@
+---
+globs: *.py
+description: Boas práticas para desenvolvimento Python neste projeto
+---
+
+# 🐍 Boas Práticas Python - GodOfPrompt Scraper
+
+## 🔧 Estrutura do Código
+
+### Imports Organizados
+```python
+# 1. Imports padrão da biblioteca
+import logging
+import time
+from datetime import datetime
+
+# 2. Imports de terceiros
+from selenium import webdriver
+from selenium.webdriver.chrome.options import Options
+import yaml
+import json
+
+# 3. Imports locais
+from my_module import MyClass
+```
+
+### Funções com Docstrings
+```python
+def extract_links_from_page(url, category_name):
+    """
+    Extrai links de uma página específica usando Selenium.
+
+    Args:
+        url (str): URL da página a ser analisada
+        category_name (str): Nome da categoria para logging
+
+    Returns:
+        list: Lista de dicionários com links extraídos
+
+    Raises:
+        Exception: Quando há erro na extração
+    """
+```
+
+## 🌐 Web Scraping com Selenium
+
+### Configuração do Driver
+```python
+def create_driver():
+    """Cria e configura o driver do Chrome."""
+    chrome_options = Options()
+    chrome_options.add_argument("--headless")  # Execução em background
+    chrome_options.add_argument("--no-sandbox")
+    chrome_options.add_argument("--disable-dev-shm-usage")
+    chrome_options.add_argument("--window-size=1920,1080")
+
+    # Anti-detecção
+    chrome_options.add_argument("--disable-blink-features=AutomationControlled")
+    chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
+
+    return webdriver.Chrome(options=chrome_options)
+```
+
+### Espera Inteligente por Elementos
+```python
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+
+# Aguardar carregamento dinâmico
+WebDriverWait(driver, 20).until(
+    lambda d: d.execute_script("return document.querySelectorAll('[wized=\"plp_prompt_item_all\"]').length > 0")
+)
+```
+
+## 📊 Logging Estruturado
+
+### Configuração Básica
+```python
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler('extraction_log.txt'),
+        logging.StreamHandler()
+    ]
+)
+```
+
+### Uso nos Scripts
+```python
+logging.info(f"Iniciando extração da categoria: {category_name}")
+logging.error(f"Erro na extração: {str(e)}")
+```
+
+## 🛡️ Tratamento de Erros
+
+### Try-Except com Context Managers
+```python
+def extract_category_links(category):
+    driver = None
+    try:
+        driver = create_driver()
+        # ... lógica de extração ...
+        return results
+    except Exception as e:
+        logging.error(f"Erro: {e}")
+        return []
+    finally:
+        if driver:
+            driver.quit()
+```
+
+### Validação de Dados
+```python
+def validate_prompt_data(prompt):
+    """Valida se os dados do prompt estão completos."""
+    required_fields = ['url', 'name', 'category']
+    return all(field in prompt and prompt[field] for field in required_fields)
+```
+
+## 📈 Padrões de Performance
+
+### Limitação de Recursos
+```python
+# Limitar páginas por categoria
+max_pages = min(total_pages, 50)
+
+# Pausas entre operações
+time.sleep(2)  # Evitar sobrecarga do servidor
+```
+
+### Processamento em Lotes
+```python
+# Processar categorias uma por vez
+for category in categories:
+    results = extract_category_links(category)
+    # Salvar resultados parciais
+    save_partial_results(results)
+```
