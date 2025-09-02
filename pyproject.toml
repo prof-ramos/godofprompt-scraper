@@ -1,0 +1,180 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "godofprompt-scraper"
+version = "1.0.0"
+description = "Web scraper automatizado para extrair links de prompts do GodOfPrompt.ai"
+authors = [
+    {name = "GodOfPrompt Scraper Team"}
+]
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.8"
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Internet :: WWW/HTTP :: Browsers",
+    "Topic :: Software Development :: Libraries :: Python Modules"
+]
+keywords = ["web-scraping", "selenium", "automation", "ai-prompts", "data-extraction"]
+dependencies = [
+    "selenium>=4.15.0",
+    "beautifulsoup4>=4.12.0",
+    "requests>=2.31.0",
+    "pyyaml>=6.0",
+    "webdriver-manager>=4.0.0",
+    "lxml>=4.9.0"
+]
+
+[project.urls]
+Homepage = "https://github.com/your-username/godofprompt-scraper"
+Repository = "https://github.com/your-username/godofprompt-scraper.git"
+Issues = "https://github.com/your-username/godofprompt-scraper/issues"
+Documentation = "https://github.com/your-username/godofprompt-scraper/blob/main/README.md"
+
+[project.scripts]
+godofprompt-scraper = "extract_links:main"
+
+[project.optional-dependencies]
+dev = [
+    "ruff>=0.1.0",
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
+    "black>=23.0.0",
+    "mypy>=1.0.0",
+    "pre-commit>=3.0.0"
+]
+docs = [
+    "sphinx>=5.0.0",
+    "sphinx-rtd-theme>=1.2.0"
+]
+all = [
+    "godofprompt-scraper[dev,docs]"
+]
+
+# =============================================================================
+# Tool Configurations
+# =============================================================================
+
+[tool.ruff]
+line-length = 88
+target-version = "py38"
+
+[tool.ruff.lint]
+select = [
+    "E",  # pycodestyle errors
+    "W",  # pycodestyle warnings
+    "F",  # pyflakes
+    "I",  # isort
+    "B",  # flake8-bugbear
+    "C4", # flake8-comprehensions
+    "UP", # pyupgrade
+]
+
+ignore = [
+    "E203",  # whitespace before ':'
+    "E501",  # line too long
+    "W503",  # line break before binary operator
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["godofprompt"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
+
+[tool.mypy]
+python_version = "3.8"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+disallow_untyped_decorators = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
+warn_unreachable = true
+strict_equality = true
+
+[[tool.mypy.overrides]]
+module = [
+    "selenium.*",
+    "webdriver_manager.*"
+]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+minversion = "7.0"
+addopts = "-ra -q --cov=godofprompt --cov-report=html --cov-report=term-missing"
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+
+[tool.coverage.run]
+source = ["godofprompt", "extract_links.py"]
+omit = [
+    "tests/*",
+    "venv/*",
+    ".venv/*",
+    "*/venv/*",
+    "*/.venv/*"
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "if self.debug:",
+    "if settings.DEBUG",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if 0:",
+    "if __name__ == .__main__.:",
+    "class .*\\bProtocol\\):",
+    "@(abc\\.)?abstractmethod"
+]
+
+# =============================================================================
+# Development Workflow
+# =============================================================================
+
+[tool.commitizen]
+name = "cz_conventional_commits"
+version = "1.0.0"
+tag_format = "v$version"
+changelog_file = "CHANGELOG.md"
+update_changelog_on_bump = true
+
+[tool.pre-commit]
+repos = [
+    {repo = "https://github.com/pre-commit/pre-commit-hooks", rev = "v4.4.0", hooks = [
+        {id = "trailing-whitespace"},
+        {id = "end-of-file-fixer"},
+        {id = "check-yaml"},
+        {id = "check-added-large-files"}
+    ]},
+    {repo = "https://github.com/psf/black", rev = "22.3.0", hooks = [
+        {id = "black", language_version = "python3"}
+    ]},
+    {repo = "https://github.com/pycqa/isort", rev = "5.12.0", hooks = [
+        {id = "isort", args = ["--profile", "black"]}
+    ]},
+    {repo = "https://github.com/pycqa/flake8", rev = "4.0.1", hooks = [
+        {id = "flake8"}
+    ]}
+]

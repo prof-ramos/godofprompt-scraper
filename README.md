@@ -27,6 +27,7 @@ godofprompt-scraper/
 ├── exemplo_uso.py           # Exemplos de uso do scraper
 ├── links.yaml               # Configuração das categorias
 ├── requirements.txt         # Dependências Python
+├── pyproject.toml          # Configuração moderna do projeto
 ├── README.md               # Este arquivo
 ├── LICENSE                 # Licença MIT
 ├── .gitignore             # Arquivos ignorados pelo Git
@@ -49,6 +50,7 @@ godofprompt-scraper/
 - **Python 3.8+**
 - **Chrome Browser** (para Selenium)
 - **Git** (opcional, para controle de versão)
+- **uv** (recomendado para gerenciamento de pacotes ultrarrápido)
 
 ### 1. Clone o Repositório
 
@@ -71,16 +73,44 @@ venv\Scripts\activate     # Windows
 
 ### 3. Instale as Dependências
 
+#### 🔧 **Opção Recomendada: uv (Gerenciador Moderno)**
 ```bash
+# Instalar uv (se não tiver)
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# Instalar dependências com uv (muito mais rápido!)
+uv pip install -r requirements.txt
+```
+
+#### 📦 **Opção Tradicional: pip**
+```bash
+# Instalar com pip
 pip install -r requirements.txt
 ```
 
-**Dependências principais:**
+#### 📋 **Dependências principais:**
 - `selenium` - Automação web
 - `beautifulsoup4` - Parsing HTML
 - `pyyaml` - Processamento YAML
 - `webdriver-manager` - Gerenciamento do ChromeDriver
 - `requests` - HTTP requests
+
+> **💡 Recomendação**: Use `uv` para uma experiência muito mais rápida! Ele é até 10x mais rápido que pip tradicional e gerencia automaticamente ambientes virtuais.
+
+#### 🚀 **Por que uv é incrível:**
+
+- ⚡ **Velocidade extrema**: Até 10x mais rápido que pip
+- 🔄 **Gerenciamento automático**: Cria e ativa ambientes virtuais automaticamente
+- 📦 **Resolução inteligente**: Resolve dependências de forma otimizada
+- 🐍 **Compatibilidade total**: Funciona com todos os projetos Python
+- 🔒 **Segurança**: Verificações de integridade automáticas
+- 💾 **Cache inteligente**: Reutiliza downloads e compilações
+
+```bash
+# Comparação prática:
+# pip install -r requirements.txt    → ~30-60 segundos
+# uv pip install -r requirements.txt → ~3-10 segundos
+```
 
 ### 4. Verifique a Instalação
 
@@ -95,6 +125,49 @@ Para ver exemplos de uso do scraper:
 ```bash
 python3 exemplo_uso.py
 ```
+
+### 6. Comandos Avançados com uv (Opcional)
+
+Se estiver usando `uv`, você pode aproveitar comandos avançados:
+
+```bash
+# Criar e ativar ambiente virtual automaticamente
+uv venv
+source .venv/bin/activate  # uv ativa automaticamente!
+
+# Instalar dependências com cache
+uv pip install -r requirements.txt
+
+# Sincronizar dependências (remove pacotes não utilizados)
+uv pip sync requirements.txt
+
+# Mostrar dependências do projeto
+uv pip list
+
+# Atualizar todas as dependências
+uv pip install --upgrade -r requirements.txt
+```
+
+> **💡 Dica**: O uv cria automaticamente um ambiente virtual chamado `.venv` na raiz do projeto!
+
+### 7. Configuração Avançada com pyproject.toml (Opcional)
+
+Para projetos mais avançados, use o `pyproject.toml` que já está configurado:
+
+```bash
+# Com uv (recomendado)
+uv sync  # Instala todas as dependências automaticamente
+
+# Com pip-tools ou pip
+pip install -e .  # Instala em modo desenvolvimento
+```
+
+O `pyproject.toml` inclui configurações para:
+- ✅ **Ruff**: Linting e formatação automáticos
+- ✅ **MyPy**: Verificação de tipos
+- ✅ **Pytest**: Testes com cobertura
+- ✅ **Pre-commit**: Hooks automáticos
+- ✅ **Black**: Formatação de código
 
 ## 🎯 Como Usar
 
@@ -311,10 +384,11 @@ Este projeto está licenciado sob a **MIT License** - veja o arquivo [LICENSE](L
 
 | Problema | Solução |
 |----------|---------|
-| `ModuleNotFoundError` | Execute `pip install -r requirements.txt` |
+| `ModuleNotFoundError` | Execute `pip install -r requirements.txt` ou `uv pip install -r requirements.txt` |
 | `WebDriverException` | Atualize Chrome browser |
 | `TimeoutException` | Aumente `PAGE_LOAD_TIMEOUT` |
 | `MemoryError` | Reduza `BATCH_SIZE` |
+| Problemas de instalação lenta | Use `uv pip install -r requirements.txt` (10x mais rápido) |
 
 ## 🗺️ Roadmap
 
@@ -445,6 +519,7 @@ finally:
 ### Ferramentas
 - [CodeRabbit](https://coderabbit.ai/) - Revisões automáticas
 - [Ruff](https://beta.ruff.rs/docs/) - Linting ultrarrápido
+- [uv](https://github.com/astral-sh/uv) - Gerenciador de pacotes ultrarrápido
 - [GodOfPrompt.ai](https://www.godofprompt.ai/) - Plataforma de prompts
 
 ### Guias do Projeto

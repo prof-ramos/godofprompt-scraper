@@ -6,6 +6,41 @@ Este guia estabelece os padrões de qualidade de código para o projeto GodOfPro
 
 ## 🛠️ Ferramentas de Qualidade
 
+### uv (Gerenciador de Pacotes)
+
+#### Por que uv?
+O **uv** é o gerenciador de pacotes Python mais rápido disponível, oferecendo:
+
+- ⚡ **Performance excepcional**: Até 10x mais rápido que pip
+- 🔄 **Gerenciamento automático**: Ambientes virtuais criados automaticamente
+- 📦 **Resolução inteligente**: Algoritmos avançados para resolução de dependências
+- 🔒 **Segurança**: Verificações de integridade e hash
+- 💾 **Cache eficiente**: Reutilização inteligente de downloads
+
+#### Instalação e Uso
+```bash
+# Instalar uv
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# Criar ambiente virtual (automático)
+uv venv
+
+# Instalar dependências (ultrarrápido!)
+uv pip install -r requirements.txt
+
+# Sincronizar dependências
+uv pip sync requirements.txt
+
+# Listar dependências instaladas
+uv pip list
+```
+
+#### Benefícios para Desenvolvimento
+- **Setup mais rápido**: Projetos são configurados em segundos
+- **Consistência**: Mesmo ambiente em diferentes máquinas
+- **Isolamento**: Dependências completamente isoladas
+- **Reprodutibilidade**: Environments idênticos garantidos
+
 ### CodeRabbit (Revisão Automática)
 O projeto utiliza **CodeRabbit** para revisões automáticas de código com as seguintes configurações:
 
