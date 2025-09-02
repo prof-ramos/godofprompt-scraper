@@ -526,6 +526,7 @@ finally:
 - [Guia de Scraping Avançado](ADVANCED_SCRAPING_GUIDE.md)
 - [Guia de Qualidade de Código](CODE_QUALITY_GUIDE.md)
 - [Regras do Cursor IDE](.cursor/rules/)
+- [Configuração pyproject.toml](pyproject.toml)
 
 ---
 
